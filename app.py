@@ -7,12 +7,13 @@ from shapely.ops import unary_union
 import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V15", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V16", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria i Układ Piętrowy")
-st.markdown("Narzędzie architektoniczne z automatycznym pasowaniem bryły do poligonu działki i wizualizacją kondygnacji.")
+st.title("🏗️ PRO-DEVELOPER AI: Generator Rzutów Kondygnacji i Układu Lokali")
+st.markdown("Narzędzie projektowe z automatycznym rysunkiem rzutu kondygnacji (mieszkania, korytarze, klatki PPOŻ).")
 st.divider()
 
 # ==========================================================
@@ -106,9 +107,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         for id_dzialki in lista_id_dzialek:
             if id_dzialki:
                 wkt_metry = pobierz_geometrie(id_dzialki, 2180)
-                wkt_gps = pobierz_geometrie(id_dzialki, 2180) # Pobieramy w 2180 a potem przekształcimy lub pobierzemy GPS osobno
-                
-                # Pobierzmy poprawnie GPS (4326)
                 wkt_gps_val = pobierz_geometrie(id_dzialki, 4326)
                 
                 if wkt_metry and wkt_gps_val:
@@ -225,9 +223,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Dokładny Obrys w Granicach Działki)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Obrys w Granicach Działki)")
         
-        # --- MAPA Z GEOMETRYCZNYM DOPASOWANIEM OBPRZYBUDYNKU ---
+        # --- MAPA ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
@@ -238,33 +236,10 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            # Tworzymy precyzyjny obrys budynku wpisany w kopertę (centrumporównawcze z zachowaniem szerokości traktu)
-            centroid_koperty = koperta_metry.centroid
-            b_box_metry = koperta_metry.bounds # minx, miny, maxx, maxy
-            
-            # Wymiary bryły oparte na powierzchni zabudowy i szerokości traktu
-            dlugosc_b = szerokosc_traktu
-            szer_b = pow_zabudowy / szerokosc_traktu
-            
-            # Tworzymy poligon budynku w układzie metrycznym wewnątrz koperty
-            budynek_metry_poly = box(
-                centroid_koperty.x - szer_b/2,
-                centroid_koperty.y - dlugosc_b/2,
-                centroid_koperty.x + szer_b/2,
-                centroid_koperty.y + dlugosc_b/2
-            )
-            
-            # Przycinamy budynek do realnej koperty, żeby upewnić się, że w 100% mieści się w działce
-            budynek_dokladny = budynek_metry_poly.intersection(koperta_metry)
-            if budynek_dokladny.is_empty:
-                budynek_dokladny = koperta_metry.buffer(-2.0)
-
-            # Rzutujemy na GPS (używając geometrii GPS zamiast szacowania prostokąta)
-            # Dla celów wizualnych w folium możemy przekształcić współrzędne przez interpolację centroidu
             c_gps = teren_gps.centroid
-            # Tworzymy precyzyjny box proporcjonalny w stopach/metrach GPS
-            d_lat = (b_box_metry[3] - b_box_metry[1]) * 0.4
-            d_lon = (b_box_metry[2] - b_box_metry[0]) * 0.4
+            b_box = teren_gps.bounds
+            d_lat = (b_box[3] - b_box[1]) * 0.35
+            d_lon = (b_box[2] - b_box[0]) * 0.35
             
             budynek_gps_box = box(
                 c_gps.x - d_lon/2, c_gps.y - d_lat/2,
@@ -279,12 +254,12 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         except Exception:
             pass
 
-        st_folium(mapa, width=800, height=450, returned_objects= [])
+        st_folium(mapa, width=800, height=450, returned_objects=[])
 
-        # --- RAPORT ---
+        # --- RAPORT I RZUT KONDYGNACJI ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport i Wizualna Struktura Pięter")
-        t1, t2, t3 = st.tabs(["🏗️ Architektura i Wykres Pięter", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
+        st.subheader("3. Szczegółowy Raport i Planimetryczny Rzut Kondygnacji")
+        t1, t2, t3 = st.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
             c1, c2, c3 = st.columns(3)
@@ -292,46 +267,80 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3.metric("Kondygnacje naziemne", f"{liczba_kond}")
             
-            st.markdown("### 📊 Wizualny Rozkład Mieszkań na Kondygnacjach")
-            st.info("Poniższy wykres przedstawia precyzyjny podział liczby lokali na poszczególnych piętrach, gwarantując, że program nie sumuje metraży abstrakcyjnie, lecz bilansuje je inżynieryjnie.")
+            st.markdown("### 📐 Generator Rzutu Architektonicznego Kondygnacji")
+            st.info("Poniższy schemat przedstawia rzut typowej kondygnacji z podziałem na trakty, korytarz osiowy, klatki ewakuacyjne oraz kolorowe moduły poszczególnych mieszkań.")
 
-            # Generowanie wykresu struktury pięter za pomocą matplotlib
-            fig, ax = plt.subplots(figsize=(10, 4))
-            
-            pietra_nrs = list(range(1, liczba_kond + 1))
-            dane_wykresu = {"1-pok": [], "2-pok": [], "3-pok": [], "4-pok": []}
-            
-            for p in pietra_nrs:
-                sztuki_p = [m for m in wygenerowane_mieszkania if m["pietro"] == p]
-                for typ in dane_wykresu.keys():
-                    dane_wykresu[typ].append(sum(1 for x in sztuki_p if x["typ"] == typ))
+            # Wybór piętra do podglądu
+            wybrane_pietro = st.slider("Wybierz numer kondygnacji do wizualizatory CAD:", min_value=1, max_value=int(liczba_kond), value=1)
 
-            kolory = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
-            dno = [0] * len(pietra_nrs)
+            # Generowanie rysunku CAD rzutu piętra za pomocą matplotlib
+            fig, ax = plt.subplots(figsize=(10, 5))
             
-            for typ, ilosci in dane_wykresu.items():
-                if sum(ilosci) > 0:
-                    ax.bar([f"Piętro {p}" for p in pietra_nrs], ilosci, bottom=dno, label=typ, color=kolory[typ], edgecolor='black', alpha=0.85)
-                    dno = [dno[i] + ilosci[i] for i in range(len(pietra_nrs))]
+            # Wymiary płyty piętra
+            szer_plyty = szerokosc_traktu
+            dl_plyty = pow_zabudowy / szerokosc_traktu
+            
+            # Rysowanie obrysu płyty budynku
+            plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
+            ax.add_patch(plyta)
+            
+            # Korytarz środkowy
+            korytarz = patches.Rectangle((2, szer_plyty/2 - 1.0), dl_plyty - 4.0, 2.0, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef', hatch='//')
+            ax.add_patch(korytarz)
+            ax.text(dl_plyty/2, szer_plyty/2, "KORYTARZ OSIOWY", color='#495057', fontsize=9, ha='center', va='center', weight='bold')
 
-            ax.set_ylabel("Liczba lokali (szt.)")
-            ax.set_title("Struktura mieszkań w podziale na kondygnacje naziemne")
-            ax.legend(loc='upper right')
-            ax.grid(axis='y', linestyle='--', alpha=0.5)
+            # Klatki schodowe PPOŻ (po bokach budynku)
+            klatka_lewa = patches.Rectangle((0.5, 0.5), 2.0, szer_plyty - 1.0, linewidth=1, edgecolor='#dc3545', facecolor='#f8d7da')
+            klatka_prawa = patches.Rectangle((dl_plyty - 2.5, 0.5), 2.0, szer_plyty - 1.0, linewidth=1, edgecolor='#dc3545', facecolor='#f8d7da')
+            ax.add_patch(klatka_lewa)
+            ax.add_patch(klatka_prawa)
+            ax.text(1.5, szer_plyty/2, "KLATKA PPOŻ", color='#721c24', fontsize=8, ha='center', va='center', rotation=90)
+            ax.text(dl_plyty - 1.5, szer_plyty/2, "KLATKA PPOŻ", color='#721c24', fontsize=8, ha='center', va='center', rotation=90)
+
+            # Rozmieszczenie mieszkań na piętrze
+            mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == wybrane_pietro]
+            
+            kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
+            
+            # Rysujemy mieszkania wzdłuż korytarza (góra i dół)
+            x_left = 3.0
+            szer_available = dl_plyty - 6.0
+            strefa_lokali_len = szer_available / max(1, len(mieszkania_pietra) // 2)
+            
+            for idx, m in enumerate(mieszkania_pietra):
+                strona = idx % 2 # 0 -> dół, 1 -> góra
+                pozycja_x = x_left + (idx // 2) * min(strefa_lokali_len, 4.0)
+                
+                if pozycja_x + 3.5 < dl_plyty - 2.5:
+                    y_pos = 0.5 if strona == 0 else szer_plyty / 2 + 1.0
+                     wys_lokalu = szer_plyty / 2 - 1.5
+                    
+                    lokal_box = patches.Rectangle(
+                        (pozycja_x, y_pos), 3.5, wys_lokalu,
+                        linewidth=1, edgecolor='#343a40', facecolor=kolory_mieszkan.get(m["typ"], '#6c757d'), alpha=0.8
+                    )
+                    ax.add_patch(lokal_box)
+                    ax.text(pozycja_x + 1.75, y_pos + wys_lokalu/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=8, ha='center', va='center', weight='bold')
+
+            ax.set_xlim(-1, dl_plyty + 1)
+            ax.set_ylim(-1, szer_plyty + 1)
+            ax.set_aspect('equal')
+            ax.axis('off')
+            ax.set_title(f"Schematyczny rzut architektoniczny – Kondygnacja {wybrane_pietro}", fontsize=12, weight='bold')
             
             st.pyplot(fig)
 
-            st.markdown("**Podsumowanie ilościowe:**")
-            podsumowanie = {}
-            for m in wygenerowane_mieszkania:
-                if m["typ"] not in podsumowanie: podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
-                podsumowanie[m["typ"]]["szt"] += 1
-                podsumowanie[m["typ"]]["suma_pow"] += m["pow"]
+            st.markdown("**Struktura lokali na wybranym piętrze:**")
+            podsumowanie_pietro = {}
+            for m in mieszkania_pietra:
+                if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
+                podsumowanie_pietro[m["typ"]]["szt"] += 1
+                podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
 
-            for typ, dane in podsumowanie.items():
-                sztuk_calkowita = dane['szt']
-                srednia_pow = round(dane['suma_pow'] / sztuk_calkowita, 1) if sztuk_calkowita > 0 else 0
-                st.write(f"🔹 **{typ}:** Łącznie **{sztuk_calkowita} szt.** | Średni metraż: **{srednia_pow} m2**")
+            for typ, dane in podsumowanie_pietro.items():
+                sztuk = dane['szt']
+                srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
+                st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
@@ -353,7 +362,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.markdown(f"**Audyt przestrzenny hali garażowej i granic działki:**")
             st.write(f"• Powierzchnia poziomu **-1**: **{round(pow_garazu_poziom_1, 1)} m2**")
             st.write(f"• Powierzchnia poziomu **-2**: **{round(pow_garazu_poziom_2, 1)} m2**")
-            st.success(f"✅ **Weryfikacja granic:** Cała wanna garażowa na poziomie -1 mieści się w obrysie działki. Obrys budynku na mapie zaznaczono bezpiecznym kolorem zielonym.")
+            st.success(f"✅ **Weryfikacja granic:** Cała wanna garażowa na poziomie -1 mieści się w obrysie działki.")
             
             st.markdown(f"**Infrastruktura techniczna i PPOŻ:**")
             st.write(f"• Długość budynku: **{round(dlugosc_budynku, 1)} m** (Wymagane klatki PPOŻ: **{liczba_klatek_ppoż} szt.**)")
