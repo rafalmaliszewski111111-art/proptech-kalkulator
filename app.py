@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V20", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V21", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Stabilny Bilans Garaży i Architektura Pięter")
-st.markdown("Narzędzie z optymalnym podziałem hali -1/-2, pełnymi statystykami liczbowymi i płynnym podglądem kondygnacji.")
+st.title("🏗️ PRO-DEVELOPER AI: Analiza Chłonności i Układ Kondygnacji")
+st.markdown("Narzędzie projektowe z dedykowanymi zakładkami dla każdego piętra, stabilnym garażem -1/-2 i precyzyjnym obrysem.")
 st.divider()
 
 # ==========================================================
@@ -130,7 +130,10 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
-        liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
+        liczba_kond = max(1, math.floor(max_wysok_mpzp if 'max_wysok_mpzp' in locals() else max_wysokosc_mpzp / wys_kond_nadziemna))
+        # Zabezpieczenie zmiennej wysokości MPZP
+        max_h = max_wysokosc_mpzp
+        liczba_kond = max(1, math.floor(max_h / wys_kond_nadziemna))
 
         # ==========================================================
         # SILNIK OBLICZENIOWY BEZSTRATNY
@@ -187,7 +190,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         
         wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy + pow_rampy_1)
         
-        # Stabilny podział garażu: poziom -2 nieco większy dla stateczności konstrukcyjnej, jeśli wymagane są 2 poziomy
         if liczba_poziomow_garazu >= 2:
             pow_garazu_poziom_1 = round(wymagany_garaz_calkowity * 0.45, 1)
             pow_garazu_poziom_2 = round(wymagany_garaz_calkowity * 0.55, 1)
@@ -196,7 +198,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             pow_garazu_poziom_2 = 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjnie Wpasowany Obrys)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjny Obrys)")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -232,18 +234,17 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         st_folium(mapa, width=800, height=450, returned_objects=[])
 
-        # --- RAPORT I RZUT KONDYGNACJI ---
+        # --- RAPORT I ZAKŁADKI KONDYGNACJI ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport i Architektoniczny Rzut Kondygnacji")
-        t1, t2, t3 = t.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"]) if 't' in locals() else st.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
+        st.subheader("3. Szczegółowy Raport i Układ Kondygnacji")
+        t1, t2, t3 = st.tabs(["🏗️ Architektura i Rzuty Pięter", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
             c1, c2, c3_col = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
+            c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_h}m max)")
             
-            # Jawne podsumowanie ilościowe mieszkań w całym budynku
             st.markdown("### 📊 Zestawienie Lokali Mieszkalnych (Cały Budynek)")
             ogólne_podsumowanie = {}
             for m in wygenerowane_mieszkania:
@@ -261,80 +262,86 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 idx_s += 1
 
             st.divider()
-            st.markdown("### 📐 Architektoniczny Rzut Kondygnacji")
-            
-            # Bezpieczny wybór piętra bez przeładowywania całej aplikacji
-            wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1, key="slider_pietra")
+            st.markdown("### 📐 Planimetryczne Rzuty Poszczególnych Kondygnacji")
+            st.info("Poniżej znajdziesz oddzielną zakładkę dla każdego piętra budynku z pełnym rozkładem mieszkań, korytarzem oraz wejściem na parterze.")
 
-            fig, ax = plt.subplots(figsize=(10, 5))
-            szer_plyty = szerokosc_traktu
-            dl_plyty = pow_zabudowy / szerokosc_traktu
-            
-            plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
-            ax.add_patch(plyta)
-            
-            klatka_srodek = patches.Rectangle((dl_plyty/2 - 2.0, 0), 4.0, szer_plyty, linewidth=1.5, edgecolor='#dc3545', facecolor='#f8d7da', hatch='X')
-            ax.add_patch(klatka_srodek)
-            ax.text(dl_plyty/2, szer_plyty/2, "KLATKA SCHODOWA\n+ PIONY / WINDA", color='#721c24', fontsize=8, ha='center', va='center', weight='bold', rotation=90)
+            # Tworzymy dynamiczne zakładki dla każdego piętra osobno
+            nazwy_zakladek = [f"Piętro {p}" for p in range(1, liczba_kond + 1)]
+            zakladki_pieter = st.tabs(nazwy_zakladek)
 
-            korytarz_lewy = patches.Rectangle((2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
-            korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
-            ax.add_patch(korytarz_lewy)
-            ax.add_patch(korytarz_prawy)
-            ax.text(dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=7, ha='center', va='center')
-            ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=7, ha='center', va='center')
+            for idx_p, tab in enumerate(zakladki_pieter):
+                pietro_nr = idx_p + 1
+                with tab:
+                    fig, ax = plt.subplots(figsize=(9, 4.5))
+                    szer_plyty = szerokosc_traktu
+                    dl_plyty = pow_zabudowy / szerokosc_traktu
+                    
+                    plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
+                    ax.add_patch(plyta)
+                    
+                    klatka_srodek = patches.Rectangle((dl_plyty/2 - 2.0, 0), 4.0, szer_plyty, linewidth=1.5, edgecolor='#dc3545', facecolor='#f8d7da', hatch='X')
+                    ax.add_patch(klatka_srodek)
+                    ax.text(dl_plyty/2, szer_plyty/2, "KLATKA SCHODOWA\n+ PIONY / WINDA", color='#721c24', fontsize=7, ha='center', va='center', weight='bold', rotation=90)
 
-            if wybrane_pietro == 1:
-                wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
-                ax.add_patch(wejscie)
-                ax.text(dl_plyty/2, -1.0, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=8, ha='center', weight='bold')
+                    korytarz_lewy = patches.Rectangle((2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
+                    korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
+                    ax.add_patch(korytarz_lewy)
+                    ax.add_patch(korytarz_prawy)
+                    ax.text(dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=6, ha='center', va='center')
+                    ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=6, ha='center', va='center')
 
-            mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == wybrane_pietro]
-            kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
-            
-            polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
-            
-            for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
-                strona = i % 2
-                x_pos = 0.5 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil(polowa_sztuk/2))
-                y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
-                wys_l = szer_plyty/2 - 1.2
-                szer_l = (dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2)
-                
-                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
-                ax.add_patch(lokal)
-                ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
+                    if pietro_nr == 1:
+                        wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
+                        ax.add_patch(wejscie)
+                        ax.text(dl_plyty/2, -1.0, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=7, ha='center', weight='bold')
 
-            for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
-                strona = i % 2
-                x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
-                y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
-                wys_l = szer_plyty/2 - 1.2
-                szer_l = (dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
-                
-                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
-                ax.add_patch(lokal)
-                ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
+                    mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
+                    kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
+                    
+                    polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
+                    
+                    for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
+                        strona = i % 2
+                        x_pos = 0.5 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil(polowa_sztuk/2))
+                        y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
+                        wys_l = szer_plyty/2 - 1.2
+                        szer_l = (dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2)
+                        
+                        lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
+                        ax.add_patch(lokal)
+                        ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
 
-            ax.set_xlim(-2, dl_plyty + 2)
-            ax.set_ylim(-2, szer_plyty + 2)
-            ax.set_aspect('equal')
-            ax.axis('off')
-            ax.set_title(f"Rzut Kondygnacji {wybrane_pietro} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=11, weight='bold')
-            
-            st.pyplot(fig)
+                    for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
+                        strona = i % 2
+                        x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
+                        y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
+                        wys_l = szer_plyty/2 - 1.2
+                        szer_l = (dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
+                        
+                        lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
+                        ax.add_patch(lokal)
+                        ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
 
-            st.markdown(f"**Struktura lokali na wybranym piętrze {wybrane_pietro}:**")
-            podsumowanie_pietro = {}
-            for m in mieszkania_pietra:
-                if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
-                podsumowanie_pietro[m["typ"]]["szt"] += 1
-                podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
+                    ax.set_xlim(-2, dl_plyty + 2)
+                    ax.set_ylim(-2, szer_plyty + 2)
+                    ax.set_aspect('equal')
+                    ax.axis('off')
+                    ax.set_title(f"Rzut Kondygnacji {pietro_nr} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=10, weight='bold')
+                    
+                    st.pyplot(fig)
 
-            for typ, dane in podsumowanie_pietro.items():
-                sztuk = dane['szt']
-                srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
+                    # Podsumowanie liczbowe dla konkretnego piętra
+                    st.markdown(f"**Statystyka Piętra {pietro_nr}:**")
+                    podsumowanie_pietro = {}
+                    for m in mieszkania_pietra:
+                        if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
+                        podsumowanie_pietro[m["typ"]]["szt"] += 1
+                        podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
+
+                    for typ, dane in podsumowanie_pietro.items():
+                        sztuk = dane['szt']
+                        srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
+                        st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
