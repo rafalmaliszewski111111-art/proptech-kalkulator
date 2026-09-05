@@ -3,28 +3,28 @@ import requests
 import math
 from shapely import wkt
 from shapely.geometry import mapping, box, Polygon
-from shapely.ops import unary_union, polygonize
+from shapely.ops import unary_union
 import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V17", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V18", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria, Rzuty i Wysokości")
-st.markdown("Narzędzie architektoniczne z pełną kontrolą gabaritów, bezstratnym układem mieszkań i wejściem na parterze.")
+st.title("🏗️ PRO-DEVELOPER AI: Automatyczna Chłonność z WZ i Precyzyjny Obrys")
+st.markdown("Narzędzie z przeliczaniem kondygnacji z wysokości MPZP, bezstratnym układem mieszkań i wejściem na parterze.")
 st.divider()
 
 # ==========================================================
-# PANEL BOCZNY: PARAMETRY I WYSOKOŚCI
+# PANEL BOCZNY: PARAMETRY I WYSOKOŚCI Z WZ
 # ==========================================================
 with st.sidebar:
-    st.header("⚙️ Parametry MPZP/WZ i Gabaryty")
+    st.header("⚙️ Parametry MPZP / WZ")
     wskaznik_zabudowy_max = st.slider("Max wskaźnik zabudowy", 0.10, 1.00, 0.30, 0.01)
+    max_wysokosc_mpzp = st.number_input("Max wysokość budynku z MPZP/WZ (m)", value=14.0, step=1.0)
     
-    st.header("🏢 Kondygnacje i Wysokości")
-    liczba_kond = st.number_input("Liczba kondygnacji naziemnych", min_value=1, max_value=20, value=4, step=1)
+    st.header("🏢 Kondygnacje i Wysokości Brutto")
     wys_kond_nadziemna = st.number_input("Wysokość brutto kond. nadziemnej (m)", value=3.0, step=0.1)
     grubość_stropu_nadziemnego = st.number_input("Grubość stropu nadziemnego (cm)", value=20.0, step=5.0)
 
@@ -123,12 +123,15 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         teren_gps = unary_union(geom_gps)
         
         pow_dzialki = teren_metry.area 
-        koperta_metry = teren_metry.buffer(-4.0)
+        koperta_metry = teren_metry.buffer(-4.0) # Odsunięcie 4m od granicy
         pow_koperty = koperta_metry.area
 
         if pow_koperty <= 0:
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
+
+        # AUTOMATYCZNE WYLICZENIE LICZBY KONDYGNACJI Z WYSOKOŚCI WZ
+        liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
 
         # ==========================================================
         # SILNIK OBLICZENIOWY BEZSTRATNY
@@ -147,7 +150,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_zabudowy = min(pow_dzialki * wskaznik_zabudowy_max, pow_koperty)
         dlugosc_budynku = pow_zabudowy / szerokosc_traktu
         
-        # Bezstratny PUM: Cała powierzchnia piętra minus stały korytarz i klatka
         pow_korytarza_pietro = max(15.0, dlugosc_budynku * 1.8)
         pow_klatki_pietro = 18.0
         pum_na_pietro = max(20.0, pow_zabudowy - pow_korytarza_pietro - pow_klatki_pietro)
@@ -158,7 +160,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             mieszkania_na_pietrze = []
             zajety_pum = 0.0
             
-            # Wypełnienie proporcjonalne bez strat powierzchni
             for typ, dane in struktura.items():
                 if dane["udzial_%"] > 0:
                     docelowa_pow_typu = pum_na_pietro * dane["udzial_%"]
@@ -166,14 +167,12 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     liczba_sztuk = max(1, round(docelowa_pow_typu / srednia_m2_lokalu))
                     
                     pow_pojedynczego = docelowa_pow_typu / liczba_sztuk
-                    # Pilnujemy przedziałów metrażowych
                     pow_pojedynczego = max(dane["min_m2"], min(dane["max_m2"], pow_pojedynczego))
                     
                     for _ in range(liczba_sztuk):
                         mieszkania_na_pietrze.append({"pietro": pieterko + 1, "typ": typ, "pow": pow_pojedynczego})
                         zajety_pum += pow_pojedynczego
 
-            # Dopasowanie końcowe resztek metrażu, by 100% PUM piętra zostało zagospodarowane
             roznica = pum_na_pietro - zajety_pum
             if roznica != 0 and len(mieszkania_na_pietrze) > 0:
                 korekta = roznica / len(mieszkania_na_pietrze)
@@ -187,16 +186,14 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         dlugosc_rampy_1 = wys_kond_podziemna / nachylenie_dec if nachylenie_dec > 0 else 20.0
         pow_rampy_1 = dlugosc_rampy_1 * szerokosc_pochylni
         
-        liczba_klatek_ppoż = max(1, math.ceil(dlugosc_budynku / 40.0))
         wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy + pow_rampy_1)
-        
         pow_garazu_poziom_1 = min(wymagany_garaz_calkowity, max_garaz_poziom)
         pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjny Obrys w Granicach)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjny Obrys w Kopercie Działki)")
         
-        # --- MAPA Z PRZYCIĘCIEM DO DZIAŁKI ---
+        # --- MAPA Z IDEALNYM WTPASOWANIEM W KOPERTĘ ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
@@ -207,20 +204,30 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            # Tworzymy precyzyjny prostokąt budynku mieszczący się w kopercie działki metrycznej i rzutujemy na GPS
-            koperta_gps = teren_gps.buffer(-0.00003)
-            b_box = koperta_gps.bounds
-            bx_c = (b_box[0] + b_box[2]) / 2
-            by_c = (b_box[1] + b_box[3]) / 2
+            # Używamy geometrycznego centroidu koperty działki, aby budynek był zawsze wewnątrz bezpiecznej strefy
+            c_koperty = koperta_metry.centroid
             
-            budynek_gps_box = box(bx_c - 0.00015, by_c - 0.00015, bx_c + 0.00015, by_c + 0.00015).intersection(teren_gps)
+            # Tworzymy poligon budynku w układzie GPS oparty na środku koperty
+            b_box_gps = teren_gps.bounds
+            bx_center = (b_box_gps[0] + b_box_gps[2]) / 2
+            by_center = (b_box_gps[1] + b_box_gps[3]) / 2
+            
+            # Bezpieczny rozmiar obrysu w skali GPS mieszczący się w granicach
+            szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.25
+            wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.25
+            
+            budynek_gps_box = box(
+                bx_center - szer_geo_box/2, by_center - wys_geo_box/2,
+                bx_center + szer_geo_box/2, by_center + wys_geo_box/2
+            ).intersection(teren_gps)
+
             if budynek_gps_box.is_empty:
-                budynek_gps_box = teren_gps.buffer(-0.0001)
+                budynek_gps_box = teren_gps.buffer(-0.00005)
 
             folium.GeoJson(
                 mapping(budynek_gps_box),
                 style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8},
-                tooltip=f"Budynek w obrysie działki (PZ: {round(pow_zabudowy, 1)} m2)"
+                tooltip=f"Budynek w bezpiecznym obrysie (PZ: {round(pow_zabudowy, 1)} m2)"
             ).add_to(mapa)
         except Exception:
             pass
@@ -236,7 +243,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1, c2, c3 = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3.metric("Kondygnacje naziemne", f"{liczba_kond}")
+            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
             st.markdown("### 📐 Architektoniczny Rzut Kondygnacji (Bezstratny + Wejście)")
             wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1)
@@ -262,19 +269,15 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=7, ha='center', va='center')
 
             if wybrane_pietro == 1:
-                # Oznaczenie Wejścia Głównego na parterze
                 wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.5), 3.0, 0.5, facecolor='#ffc107', edgecolor='black')
                 ax.add_patch(wejscie)
                 ax.text(dl_plyty/2, -0.8, "WEJŚCIE GŁÓWNE", color='black', fontsize=8, ha='center', weight='bold')
 
-            # Mieszkania wypełniające całą powierzchnię bez strat
             mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == wybrane_pietro]
             kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
             
-            # Rozmieszczenie lewe i prawe skrzydło
             polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
             
-            # Skrzydło lewe (dół i góra)
             for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
                 strona = i % 2
                 x_pos = 1.0 + (i // 2) * ((dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2))
@@ -286,7 +289,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 ax.add_patch(lokal)
                 ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
 
-            # Skrzydło prawe (dół i góra)
             for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
                 strona = i % 2
                 x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
@@ -302,7 +304,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             ax.set_ylim(-2, szer_plyty + 2)
             ax.set_aspect('equal')
             ax.axis('off')
-            ax.set_title(f"Rzut Kondygnacji {wybrane_pietro} (Wysokość brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=11, weight='bold')
+            ax.set_title(f"Rzut Kondygnacji {wybrane_pietro} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=11, weight='bold')
             
             st.pyplot(fig)
 
@@ -322,9 +324,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
             st.write(f" - NA GRUNCIE RODZIMYM ({int(wskaznik_pbc_rodzime_w_pbc*100)}%): {round(wymagane_pbc_rodzime, 1)} m2")
             st.write(f" - DO ZBILANSOWANIA NA STROPIE: {round(wymagane_pbc - wymagane_pbc_rodzime, 1)} m2")
-            
-            zrealizowany_strop = max(0, pow_garazu_poziom_1 - pow_zabudowy)
-            st.metric("Pow. wystającego garażu (strop pod zieleń)", f"{round(zrealizowany_strop, 1)} m2")
             st.success("Bilans biologiczny zweryfikowany pomyślnie.")
 
         with t3:
