@@ -3,3 +3,4 @@ requests
 shapely
 folium
 streamlit-folium
+matplotlib
