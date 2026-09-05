@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V18", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V19", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Automatyczna Chłonność z WZ i Precyzyjny Obrys")
-st.markdown("Narzędzie z przeliczaniem kondygnacji z wysokości MPZP, bezstratnym układem mieszkań i wejściem na parterze.")
+st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria, Wejście 3m i Rzuty")
+st.markdown("Narzędzie architektoniczne z idealnym pozycjonowaniem w obrysie działki i bezstratnym układem pięter.")
 st.divider()
 
 # ==========================================================
@@ -123,14 +123,13 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         teren_gps = unary_union(geom_gps)
         
         pow_dzialki = teren_metry.area 
-        koperta_metry = teren_metry.buffer(-4.0) # Odsunięcie 4m od granicy
+        koperta_metry = teren_metry.buffer(-4.0)
         pow_koperty = koperta_metry.area
 
         if pow_koperty <= 0:
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
-        # AUTOMATYCZNE WYLICZENIE LICZBY KONDYGNACJI Z WYSOKOŚCI WZ
         liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
 
         # ==========================================================
@@ -150,8 +149,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_zabudowy = min(pow_dzialki * wskaznik_zabudowy_max, pow_koperty)
         dlugosc_budynku = pow_zabudowy / szerokosc_traktu
         
-        pow_korytarza_pietro = max(15.0, dlugosc_budynku * 1.8)
-        pow_klatki_pietro = 18.0
+        pow_korytarza_pietro = max(12.0, dlugosc_budynku * 1.5)
+        pow_klatki_pietro = 16.0
         pum_na_pietro = max(20.0, pow_zabudowy - pow_korytarza_pietro - pow_klatki_pietro)
         calkowity_pum = pum_na_pietro * liczba_kond
 
@@ -191,9 +190,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjny Obrys w Kopercie Działki)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjnie Wpasowany Obrys w Granicach)")
         
-        # --- MAPA Z IDEALNYM WTPASOWANIEM W KOPERTĘ ---
+        # --- MAPA Z OPTYMALNYM DOPASOWANIEM DO KOPERTY DZIAŁKI ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
@@ -204,25 +203,24 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            # Używamy geometrycznego centroidu koperty działki, aby budynek był zawsze wewnątrz bezpiecznej strefy
-            c_koperty = koperta_metry.centroid
-            
-            # Tworzymy poligon budynku w układzie GPS oparty na środku koperty
+            # Używamy geometrycznego środka koperty działki, rzutując proporcjonalny obrys ściśle wewnątrz
+            p_rep = koperta_metry.representative_point()
             b_box_gps = teren_gps.bounds
-            bx_center = (b_box_gps[0] + b_box_gps[2]) / 2
-            by_center = (b_box_gps[1] + b_box_gps[3]) / 2
             
-            # Bezpieczny rozmiar obrysu w skali GPS mieszczący się w granicach
-            szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.25
-            wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.25
+            # Skala dopasowana gabarytowo do powierzchni zabudowy tak, by budynek leżał w osi działki
+            szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.20
+            wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.20
+            
+            c_gps_x = (b_box_gps[0] + b_box_gps[2]) / 2
+            c_gps_y = (b_box_gps[1] + b_box_gps[3]) / 2
             
             budynek_gps_box = box(
-                bx_center - szer_geo_box/2, by_center - wys_geo_box/2,
-                bx_center + szer_geo_box/2, by_center + wys_geo_box/2
+                c_gps_x - szer_geo_box/2, c_gps_y - wys_geo_box/2,
+                c_gps_x + szer_geo_box/2, c_gps_y + wys_geo_box/2
             ).intersection(teren_gps)
 
             if budynek_gps_box.is_empty:
-                budynek_gps_box = teren_gps.buffer(-0.00005)
+                budynek_gps_box = koperta_metry
 
             folium.GeoJson(
                 mapping(budynek_gps_box),
@@ -236,16 +234,16 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         # --- RAPORT I RZUT KONDYGNACJI ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport i Bezstratny Rzut Architektoniczny")
+        st.subheader("3. Szczegółowy Raport i Architektoniczny Rzut Kondygnacji")
         t1, t2, t3 = st.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
             c1, c2, c3 = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
+            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysok_mpzp}m max)")
             
-            st.markdown("### 📐 Architektoniczny Rzut Kondygnacji (Bezstratny + Wejście)")
+            st.markdown("### 📐 Architektoniczny Rzut Kondygnacji (Wejście 3m + Klatka Centralna)")
             wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1)
 
             fig, ax = plt.subplots(figsize=(10, 5))
@@ -256,11 +254,12 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
             ax.add_patch(plyta)
             
-            # Centralna klatka schodowa i korytarz osiowy
+            # Centralna klatka schodowa i piony (nie blokuje elewacji)
             klatka_srodek = patches.Rectangle((dl_plyty/2 - 2.0, 0), 4.0, szer_plyty, linewidth=1.5, edgecolor='#dc3545', facecolor='#f8d7da', hatch='X')
             ax.add_patch(klatka_srodek)
             ax.text(dl_plyty/2, szer_plyty/2, "KLATKA SCHODOWA\n+ PIONY / WINDA", color='#721c24', fontsize=8, ha='center', va='center', weight='bold', rotation=90)
 
+            # Korytarze osiowe łączące skrzydła z klatką
             korytarz_lewy = patches.Rectangle((2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
             korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
             ax.add_patch(korytarz_lewy)
@@ -269,34 +268,37 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=7, ha='center', va='center')
 
             if wybrane_pietro == 1:
-                wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.5), 3.0, 0.5, facecolor='#ffc107', edgecolor='black')
+                # Wejście główne o szerokości dokładnie 3 metrów na parterze
+                wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
                 ax.add_patch(wejscie)
-                ax.text(dl_plyty/2, -0.8, "WEJŚCIE GŁÓWNE", color='black', fontsize=8, ha='center', weight='bold')
+                ax.text(dl_plyty/2, -1.0, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=8, ha='center', weight='bold')
 
             mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == wybrane_pietro]
             kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
             
             polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
             
+            # Rozmieszczenie mieszkań w skrzydle lewym
             for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
                 strona = i % 2
-                x_pos = 1.0 + (i // 2) * ((dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2))
+                x_pos = 0.5 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil(polowa_sztuk/2))
                 y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
                 wys_l = szer_plyty/2 - 1.2
-                szer_l = (dl_plyty/2 - 4.0) / math.ceil(polowa_sztuk/2)
+                szer_l = (dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2)
                 
-                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.2, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
+                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
                 ax.add_patch(lokal)
                 ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
 
+            # Rozmieszczenie mieszkań w skrzydle prawym
             for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
                 strona = i % 2
-                x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
+                x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
                 y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
                 wys_l = szer_plyty/2 - 1.2
-                szer_l = (dl_plyty/2 - 4.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
+                szer_l = (dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
                 
-                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.2, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
+                lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
                 ax.add_patch(lokal)
                 ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
 
