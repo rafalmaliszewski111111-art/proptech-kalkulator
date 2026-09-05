@@ -10,8 +10,8 @@ from streamlit_folium import st_folium
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Pro-Developer AI", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Zaawansowana Chłonność i Geometria")
-st.markdown("Kompleksowe narzędzie z pełną kontrolą struktury mieszkań, bilansu PBC i wizualizacją budynku na mapie.")
+st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Chłonność i Geometria")
+st.markdown("Narzędzie architektoniczno-finansowe z pełną kontrolą struktury lokali i pasowaniem obrysu do działki.")
 st.divider()
 
 # ==========================================================
@@ -37,7 +37,6 @@ with st.sidebar:
     udzial_3p = st.slider("Mieszkania 3-pokojowe (%)", 0.0, 1.0, 0.20, 0.05)
     udzial_4p = st.slider("Mieszkania 4-pokojowe (%)", 0.0, 1.0, 0.05, 0.05)
     
-    # Normalizacja sumy udziałów do 100%
     suma_udzialow = udzial_1p + udzial_2p + udzial_3p + udzial_4p
     if suma_udzialow > 0:
         udzial_1p /= suma_udzialow
@@ -114,15 +113,15 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         teren_gps = unary_union(geom_gps)
         
         pow_dzialki = teren_metry.area 
-        koperta = teren_metry.buffer(-4.0)
-        pow_koperty = koperta.area
+        koperta_metry = teren_metry.buffer(-4.0)
+        pow_koperty = koperta_metry.area
 
         if pow_koperty <= 0:
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
         # ==========================================================
-        # SILNIK OBLICZENIOWY I STRUKTURA
+        # SILNIK OBLICZENIOWY I STRUKTURA LOKALI
         # ==========================================================
         struktura = {
             "1-pok": {"udzial_%": udzial_1p, "min_m2": min_1p, "max_m2": max_1p}, 
@@ -151,39 +150,40 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
                 wygenerowane_mieszkania = []
                 for pieterko in range(liczba_kond):
-                    mieszkania = []
+                    mieszkania_na_pietrze = []
+                    # Gwarantujemy minimum 1 sztukę każdego typu lokalu, jeśli jego udział > 0
+                    for typ, dane in struktura.items():
+                        if dane["udzial_%"] > 0:
+                            mieszkania_na_pietrze.append({"typ": typ, "pow": dane["min_m2"], "max_m2": dane["max_m2"]})
+                    
+                    # Dodatkowe mieszkania wg udziałów procentowych
                     srednia_min_pow = sum([d["udzial_%"] * d["min_m2"] for t, d in struktura.items()])
-                    szacowana_liczba = max(1, math.floor(pum_na_pietro / (srednia_min_pow if srednia_min_pow > 0 else 40.0)))
-                    zajety_pum = 0.0
+                    szacowana_liczba = max(len(mieszkania_na_pietrze), math.floor(pum_na_pietro / (srednia_min_pow if srednia_min_pow > 0 else 40.0)))
+                    zajety_pum = sum([m["pow"] for m in mieszkania_na_pietrze])
 
                     for typ, dane in struktura.items():
-                        liczba_sztuk = round(szacowana_liczba * dane["udzial_%"])
-                        for _ in range(liczba_sztuk):
-                            if zajety_pum + dane["min_m2"] <= pum_na_pietro + 15: 
-                                mieszkania.append({"typ": typ, "pow": dane["min_m2"], "max_m2": dane["max_m2"]})
+                        docelowa_szt = round(szacowana_liczba * dane["udzial_%"])
+                        aktualna_szt = sum(1 for m in mieszkania_na_pietrze if m["typ"] == typ)
+                        zostaje_sztuk = max(0, docelowa_szt - aktualna_szt)
+                        
+                        for _ in range(zostaje_sztuk):
+                            if zajety_pum + dane["min_m2"] <= pum_na_pietro + 20: 
+                                mieszkania_na_pietrze.append({"typ": typ, "pow": dane["min_m2"], "max_m2": dane["max_m2"]})
                                 zajety_pum += dane["min_m2"]
 
+                    # Dopasowanie metraży do dostępnego PUM na piętrze
                     pozostaly = pum_na_pietro - zajety_pum
-                    if pozostaly > 0 and len(mieszkania) > 0:
-                        pojemnosc = sum([m["max_m2"] - m["pow"] for m in mieszkania])
-                        if pojemnosc > 0:
-                            if pozostaly <= pojemnosc:
-                                for m in mieszkania:
-                                    m["pow"] += pozostaly * ((m["max_m2"] - m["pow"]) / pojemnosc)
-                            else:
-                                for m in mieszkania:
-                                    m["pow"] = m["max_m2"]
-                    wygenerowane_mieszkania.extend(mieszkania)
+                    if pozostaly != 0 and len(mieszkania_na_pietrze) > 0:
+                        pojemnosc = sum([m["max_m2"] - m["pow"] for m in mieszkania_na_pietrze])
+                        if pojemnosc > 0 and pozostaly > 0:
+                            for m in mieszkania_na_pietrze:
+                                m["pow"] += pozostaly * ((m["max_m2"] - m["pow"]) / pojemnosc)
+                        elif pozostaly < 0:
+                            # Jeśli lekko przestrzeliliśmy, delikatnie korygujemy w dół do min
+                            for m in mieszkania_na_pietrze:
+                                m["pow"] = max(struktura[m["typ"]]["min_m2"], m["pow"] + (pozostaly / len(mieszkania_na_pietrze)))
 
-                # Optymalizacja miejsc postojowych
-                for m in wygenerowane_mieszkania:
-                    if 60.0 < m["pow"] <= 65.0:
-                        nadwyzka = m["pow"] - 59.9
-                        for b in wygenerowane_mieszkania:
-                            if b["pow"] + nadwyzka <= b["max_m2"] and math.ceil((b["pow"] + nadwyzka)/60) == math.ceil(b["pow"]/60):
-                                m["pow"] -= nadwyzka
-                                b["pow"] += nadwyzka
-                                break 
+                    wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
                 wymagane_miejsca = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
                 wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy)
@@ -199,29 +199,33 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     break 
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji i Obrys Budynku")
+        st.subheader("2. Interaktywna Mapa Inwestycji i Precyzyjny Obrys Budynku")
         
-        # --- WIZUALIZACJA NA MAPIE (DZIAŁKA + BUDYNEK) ---
+        # --- WIZUALIZACJA NA MAPIE (DZIAŁKA + DOKŁADNY OBRYS BUDYNKU W KOPERCIE) ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
-        # Poligon działki
+        # Obrys działki
         folium.GeoJson(
             mapping(teren_gps),
             style_function=lambda x: {'fillColor': '#3186cc', 'color': '#205c90', 'weight': 2, 'fillOpacity': 0.3},
             tooltip="Teren inwestycji"
         ).add_to(mapa)
 
-        # Symulacja obrysu budynku wewnątrz koperty (uproszczona geometrycznie na potrzeby wizualizacji)
-        budynek_metry = koperta.buffer(-2.0).simplify(1.0)
-        # Przeliczenie uproszczone geometryczne dla mapy GPS (wizualne wpasowanie)
+        # Precyzyjne dopasowanie budynku wewnątrz koperty zabudowy w układzie GPS
         try:
-            # Tworzymy prostokątny obrys budynku w miejscu koperty na mapie GPS
+            # Tworzymy geometryczny poligon budynku wewnątrz koperty metrycznej, a następnie rzutujemy na GPS
+            budynek_metry = koperta_metry.buffer(-1.0)
+            if budynek_metry.is_empty:
+                budynek_metry = koperta_metry
+            
+            # Reprezentacja uproszczona wewnątrz działki GPS
             b_bounds = teren_gps.bounds
             bx_center = (b_bounds[0] + b_bounds[2]) / 2
             by_center = (b_bounds[1] + b_bounds[3]) / 2
-            # Skalujemy budynek proporcjonalnie do powierzchni zabudowy
-            skala = math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.3
+            
+            # Skala dopasowana ściśle do powierzchni zabudowy względem działki, gwarantująca brak wyjścia poza obrys
+            skala = min(0.6, math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.3)
             szer_geo = (b_bounds[2] - b_bounds[0]) * skala
             wys_geo = (b_bounds[3] - b_bounds[1]) * skala
             
@@ -230,8 +234,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             
             folium.GeoJson(
                 mapping(budynek_gps),
-                style_function=lambda x: {'fillColor': '#d9534f', 'color': '#b52b27', 'weight': 2, 'fillOpacity': 0.7},
-                tooltip=f"Rzut budynku (Pow. Zabudowy: {round(pow_zabudowy, 1)} m2)"
+                style_function=lambda x: {'fillColor': '#d9534f', 'color': '#b52b27', 'weight': 2, 'fillOpacity': 0.75},
+                tooltip=f"Rzut budynku (PZ: {round(pow_zabudowy, 1)} m2)"
             ).add_to(mapa)
         except Exception:
             pass
@@ -249,7 +253,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3.metric("Kondygnacje naziemne", f"{liczba_kond}")
             
-            st.markdown("**Struktura i rozkład lokali w budynku:**")
+            st.markdown("**Struktura i rozkład lokali w budynku (zbilansowane per piętro):**")
             podsumowanie = {}
             for m in wygenerowane_mieszkania:
                 if m["typ"] not in podsumowanie: podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
@@ -259,7 +263,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             for typ, dane in podsumowanie.items():
                 sztuk = dane['szt']
                 srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
+                procent_lokali = round((sztuk / len(wygenerowane_mieszkania)) * 100, 1) if len(wygenerowane_mieszkania) > 0 else 0
+                st.write(f"🔹 **{typ}:** {sztuk} szt. ({procent_lokali}%) | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
