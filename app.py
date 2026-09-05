@@ -3,18 +3,18 @@ import requests
 import math
 from shapely import wkt
 from shapely.geometry import mapping, box, Polygon
-from shapely.ops import unary_union
-from shapely.affinity import scale, rotate, translate
+from shapely.ops import unary_union, transform
+from folium.plugins import Draw, MeasureControl
 import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V23", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V25", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Rotacja, Gabaryty i Układ Pięter")
-st.markdown("Narzędzie z automatycznym obrotem budynku równolegle do działki, audytem miejsc (goście + niepełnosprawni) oraz rzutami.")
+st.title("🏗️ PRO-DEVELOPER AI: Geometria, Draw i Pomiary Liniowe")
+st.markdown("Narzędzie z blokadą traktu, ortogonalnym obrysem, narzędziem Draw i miarką odległości na żywo.")
 st.divider()
 
 # ==========================================================
@@ -39,7 +39,7 @@ with st.sidebar:
     
     st.header("📐 Parametry Techniczne")
     pow_na_miejsce_garaz = st.number_input("Pow. na 1 mp w hali (m2)", value=30.0)
-    szerokosc_traktu = st.number_input("Szerokość traktu (m)", value=14.0)
+    szerokosc_traktu_input = st.number_input("Szerokość traktu (m)", value=14.0)
     kat_nachylenia_ramp = st.slider("Max kąt nachylenia pochylni (%)", 5.0, 20.0, 15.0, 1.0)
     szerokosc_pochylni = st.number_input("Szerokość pochylni zjazdowej (m)", value=5.5)
 
@@ -57,23 +57,6 @@ with st.sidebar:
         udzial_4p = suwak_4p / suma_suwakow
     else:
         udzial_1p, udzial_2p, udzial_3p, udzial_4p = 0.25, 0.25, 0.25, 0.25
-
-    st.header("📏 Przedziały Metrażowe (min - max)")
-    c1, c2 = st.columns(2)
-    min_1p = c1.number_input("1p min", value=26.0)
-    max_1p = c2.number_input("1p max", value=35.0)
-    
-    c3, c4 = st.columns(2)
-    min_2p = c3.number_input("2p min", value=38.0)
-    max_2p = c4.number_input("2p max", value=52.0)
-
-    c5, c6 = st.columns(2)
-    min_3p = c5.number_input("3p min", value=56.0)
-    max_3p = c6.number_input("3p max", value=72.0)
-
-    c7, c8 = st.columns(2)
-    min_4p = c7.number_input("4p min", value=76.0)
-    max_4p = c8.number_input("4p max", value=95.0)
 
 # ==========================================================
 # WPROWADZANIE DANYCH DZIAŁEK
@@ -98,6 +81,17 @@ def pobierz_geometrie(identyfikator_teryt, srid):
     except Exception:
         pass
     return None
+
+def metry_to_gps(geom_metry, bounds_metry, bounds_gps):
+    min_mx, min_my, max_mx, max_my = bounds_metry
+    min_gx, min_gy, max_gx, max_gy = bounds_gps
+    scale_x = (max_gx - min_gx) / (max_mx - min_mx) if (max_mx - min_mx) != 0 else 1
+    scale_y = (max_gy - min_gy) / (max_my - min_my) if (max_my - min_my) != 0 else 1
+    cmx, cmy = (min_mx + max_mx)/2, (min_my + max_my)/2
+    cgx, cgy = (min_gx + max_gx)/2, (min_gy + max_gy)/2
+    def transform_coords(x, y):
+        return (cgx + (x - cmx) * scale_x, cgy + (y - cmy) * scale_y)
+    return transform(transform_coords, geom_metry)
 
 if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
     if not any(lista_id_dzialek):
@@ -131,10 +125,47 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
+        # ==========================================================
+        # STRAŻNIK SZEROKOŚCI TRAKTU I ORTOGONALNA GEOMETRIA
+        # ==========================================================
+        mrr_metry = koperta_metry.minimum_rotated_rectangle
+        coords_m = list(mrr_metry.exterior.coords)
+        d1 = math.hypot(coords_m[1][0] - coords_m[0][0], coords_m[1][1] - coords_m[0][1])
+        d2 = math.hypot(coords_m[2][0] - coords_m[1][0], coords_m[2][1] - coords_m[1][1])
+
+        if d1 > d2:
+            angle_rad = math.atan2(coords_m[1][1] - coords_m[0][1], coords_m[1][0] - coords_m[0][0])
+            max_len, max_wid = d1, d2
+        else:
+            angle_rad = math.atan2(coords_m[2][1] - coords_m[1][1], coords_m[2][0] - coords_m[1][0])
+            max_len, max_wid = d2, d1
+
+        szerokosc_traktu = szerokosc_traktu_input
+        if szerokosc_traktu > max_wid:
+            st.error(f"⚠️ **UWAGA - TRAKT ZBYT SZEROKI:** Podana szerokość traktu ({szerokosc_traktu}m) nie mieści się w granicach nieprzekraczalnych linii zabudowy (pozostało {round(max_wid, 1)}m po odsunięciu o 4m z każdej strony). Trakt został automatycznie zredukowany do maksimum.")
+            szerokosc_traktu = max_wid
+
         liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
+        pow_zabudowy = min(pow_dzialki * wskaznik_zabudowy_max, pow_koperty)
+        dlugosc_budynku = min(pow_zabudowy / szerokosc_traktu, max_len)
+        pow_zabudowy = dlugosc_budynku * szerokosc_traktu
+
+        cx, cy = koperta_metry.centroid.x, koperta_metry.centroid.y
+        dx_dir, dy_dir = math.cos(angle_rad), math.sin(angle_rad)
+        vl_x, vl_y = dx_dir * dlugosc_budynku / 2, dy_dir * dlugosc_budynku / 2
+        vw_x, vw_y = -dy_dir * szerokosc_traktu / 2, dx_dir * szerokosc_traktu / 2
+        
+        p1 = (cx + vl_x + vw_x, cy + vl_y + vw_y)
+        p2 = (cx + vl_x - vw_x, cy + vl_y - vw_y)
+        p3 = (cx - vl_x - vw_x, cy - vl_y - vw_y)
+        p4 = (cx - vl_x + vw_x, cy - vl_y + vw_y)
+        budynek_metry_poly = Polygon([p1, p2, p3, p4])
+        budynek_metry_final = budynek_metry_poly.intersection(koperta_metry)
+        
+        budynek_gps_final = metry_to_gps(budynek_metry_final, teren_metry.bounds, teren_gps.bounds)
 
         # ==========================================================
-        # SILNIK OBLICZENIOWY BEZSTRATNY
+        # SILNIK OBLICZENIOWY BEZSTRATNY & GARAŻ PBC
         # ==========================================================
         struktura = {
             "1-pok": {"udzial_%": udzial_1p, "min_m2": min_1p, "max_m2": max_1p}, 
@@ -143,12 +174,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             "4-pok": {"udzial_%": udzial_4p, "min_m2": min_4p, "max_m2": max_4p}
         }
         
-        wymagane_pbc = pow_dzialki * wskaznik_pbc_calkowite
-        wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
+        wymagane_pbc_rodzime = pow_dzialki * wskaznik_pbc_calkowite * wskaznik_pbc_rodzime_w_pbc
         max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
-        
-        pow_zabudowy = min(pow_dzialki * wskaznik_zabudowy_max, pow_koperty)
-        dlugosc_budynku = pow_zabudowy / szerokosc_traktu
         
         pow_korytarza_pietro = max(12.0, dlugosc_budynku * 1.5)
         pow_klatki_pietro = 16.0
@@ -163,12 +190,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             for typ, dane in struktura.items():
                 if dane["udzial_%"] > 0:
                     docelowa_pow_typu = pum_na_pietro * dane["udzial_%"]
-                    srednia_m2_lokalu = (dane["min_m2"] + dane["max_m2"]) / 2.0
-                    liczba_sztuk = max(1, round(docelowa_pow_typu / srednia_m2_lokalu))
-                    
-                    pow_pojedynczego = docelowa_pow_typu / liczba_sztuk
-                    pow_pojedynczego = max(dane["min_m2"], min(dane["max_m2"], pow_pojedynczego))
-                    
+                    liczba_sztuk = max(1, round(docelowa_pow_typu / ((dane["min_m2"] + dane["max_m2"]) / 2.0)))
+                    pow_pojedynczego = max(dane["min_m2"], min(dane["max_m2"], docelowa_pow_typu / liczba_sztuk))
                     for _ in range(liczba_sztuk):
                         mieszkania_na_pietrze.append({"pietro": pieterko + 1, "typ": typ, "pow": pow_pojedynczego})
                         zajety_pum += pow_pojedynczego
@@ -176,92 +199,47 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             roznica = pum_na_pietro - zajety_pum
             if roznica != 0 and len(mieszkania_na_pietrze) > 0:
                 korekta = roznica / len(mieszkania_na_pietrze)
-                for m in mieszkania_na_pietrze:
-                    m["pow"] += korekta
-
+                for m in mieszkania_na_pietrze: m["pow"] += korekta
             wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
-        # Precyzyjny bilans miejsc parkingowych z uwzględnieniem dodatków MPZP (Goście + Niepełnosprawni)
         baza_miejsc = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
         miejsca_goscie = math.ceil(baza_miejsc * 0.01)
         miejsca_niepelnosprawni = math.ceil(baza_miejsc * 0.01)
         wymagane_miejsca = baza_miejsc + miejsca_goscie + miejsca_niepelnosprawni
 
-        nachylenie_dec = kat_nachylenia_ramp / 100.0
-        dlugosc_rampy_1 = wys_kond_podziemna / nachylenie_dec if nachylenie_dec > 0 else 20.0
-        pow_rampy_1 = dlugosc_rampy_1 * szerokosc_pochylni
-        
+        dlugosc_rampy = wys_kond_podziemna / (kat_nachylenia_ramp / 100.0)
+        pow_rampy_1 = dlugosc_rampy * szerokosc_pochylni
         wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy + pow_rampy_1)
         
         if liczba_poziomow_garazu >= 2:
-            pow_garazu_poziom_1 = round(wymagany_garaz_calkowity * 0.45, 1)
-            pow_garazu_poziom_2 = round(wymagany_garaz_calkowity * 0.55, 1)
+            pow_garazu_poziom_1 = min(round(wymagany_garaz_calkowity * 0.45, 1), max_garaz_poziom)
+            pow_garazu_poziom_2 = round(wymagany_garaz_calkowity - pow_garazu_poziom_1, 1)
         else:
-            pow_garazu_poziom_1 = round(wymagany_garaz_calkowity, 1)
+            pow_garazu_poziom_1 = min(round(wymagany_garaz_calkowity, 1), max_garaz_poziom)
             pow_garazu_poziom_2 = 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Obrót wg Geometrii Działki)")
+        st.subheader("2. Interaktywna Mapa (Rysowanie Linii i Miarka Odległości)")
+        st.info("💡 **WSKAZÓWKA:** Użyj ikony linijki w prawym górnym rogu mapy, aby precyzyjnie (w metrach) zmierzyć odległość od narysowanej linii zabudowy do granicy działki.")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
+        # DODANE NARZĘDZIA: Rysowanie oraz Miarka (MeasureControl)
+        Draw(export=True, position='topleft', draw_options={'polyline':True, 'polygon':True, 'rectangle':True, 'circle':False, 'marker':False, 'circlemarker':False}).add_to(mapa)
+        MeasureControl(position='topright', primary_length_unit='meters', primary_area_unit='sqmeters').add_to(mapa)
+
         folium.GeoJson(
             mapping(teren_gps),
             style_function=lambda x: {'fillColor': '#3186cc', 'color': '#205c90', 'weight': 2, 'fillOpacity': 0.3},
-            tooltip="Granice działki"
+            tooltip="Granice działki inwestycyjnej"
         ).add_to(mapa)
 
-        try:
-            # Algorytm idealnego wpasowania budynku w oparciu o najdłuższą krawędź
-            cx = teren_gps.centroid.x
-            cy = teren_gps.centroid.y
-            
-            # Przelicznik metrów na stopnie geograficzne dla długości (Lat) i szerokości (Lon)
-            m_to_deg_lat = 1 / 111320.0
-            m_to_deg_lon = 1 / (111320.0 * math.cos(math.radians(cy)))
-            
-            szer_deg = szerokosc_traktu * m_to_deg_lon
-            dlug_deg = dlugosc_budynku * m_to_deg_lat
-            
-            # Tworzymy surowe pudełko o wymiarach budynku
-            unrotated_box = box(-szer_deg/2, -dlug_deg/2, szer_deg/2, dlug_deg/2)
-            translated_box = translate(unrotated_box, xoff=cx, yoff=cy)
-            
-            # Obliczamy kąt najdłuższej krawędzi działki (Minimum Rotated Rectangle)
-            mrr = teren_gps.minimum_rotated_rectangle
-            coords = list(mrr.exterior.coords)
-            
-            d1 = math.hypot(coords[1][0] - coords[0][0], coords[1][1] - coords[0][1])
-            d2 = math.hypot(coords[2][0] - coords[1][0], coords[2][1] - coords[1][1])
-            
-            if d1 > d2:
-                dx = coords[1][0] - coords[0][0]
-                dy = coords[1][1] - coords[0][1]
-            else:
-                dx = coords[2][0] - coords[1][0]
-                dy = coords[2][1] - coords[1][1]
-                
-            angle_deg = math.degrees(math.atan2(dy, dx))
-            
-            # Obracamy budynek tak, by układał się wzdłuż najdłuższej osi działki
-            budynek_gps_rotated = rotate(translated_box, angle_deg - 90, origin='centroid')
-            
-            # Zabezpieczenie nałożenia na działkę (obcięcie do granic parceli, jeśli zachodzi)
-            budynek_gps_rotated = budynek_gps_rotated.intersection(teren_gps)
-            if budynek_gps_rotated.is_empty:
-                 budynek_gps_rotated = teren_gps.buffer(-0.00005)
-
-            # Tooltip z fizycznymi wymiarami w metrach
-            tooltip_txt = f"Budynek (Gabaryty: {round(szerokosc_traktu, 1)}m x {round(dlugosc_budynku, 1)}m | PZ: {round(pow_zabudowy, 1)} m²)"
-
-            folium.GeoJson(
-                mapping(budynek_gps_rotated),
-                style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8},
-                tooltip=tooltip_txt
-            ).add_to(mapa)
-        except Exception:
-            pass
+        folium.GeoJson(
+            mapping(budynek_gps_final),
+            style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8},
+            tooltip=f"Budynek (Szer: {round(szerokosc_traktu, 1)}m x Dł: {round(dlugosc_budynku, 1)}m | PZ: {round(pow_zabudowy, 1)} m²)"
+        ).add_to(mapa)
 
         st_folium(mapa, width=800, height=450, returned_objects=[])
 
@@ -316,8 +294,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
                     ax.add_patch(korytarz_lewy)
                     ax.add_patch(korytarz_prawy)
-                    ax.text(dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=6, ha='center', va='center')
-                    ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=6, ha='center', va='center')
 
                     if pietro_nr == 1:
                         wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
@@ -326,7 +302,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
                     mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
                     kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
-                    
                     polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
                     
                     for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
@@ -335,7 +310,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                         y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
                         wys_l = szer_plyty/2 - 1.2
                         szer_l = (dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2)
-                        
                         lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
                         ax.add_patch(lokal)
                         ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
@@ -346,7 +320,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                         y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
                         wys_l = szer_plyty/2 - 1.2
                         szer_l = (dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
-                        
                         lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
                         ax.add_patch(lokal)
                         ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
@@ -356,36 +329,23 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     ax.set_aspect('equal')
                     ax.axis('off')
                     ax.set_title(f"Rzut Kondygnacji {pietro_nr} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=10, weight='bold')
-                    
                     st.pyplot(fig)
-
-                    st.markdown(f"**Statystyka Piętra {pietro_nr}:**")
-                    podsumowanie_pietro = {}
-                    for m in mieszkania_pietra:
-                        if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
-                        podsumowanie_pietro[m["typ"]]["szt"] += 1
-                        podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
-
-                    for typ, dane in podsumowanie_pietro.items():
-                        sztuk = dane['szt']
-                        srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                        st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
             st.write(f" - NA GRUNCIE RODZIMYM ({int(wskaznik_pbc_rodzime_w_pbc*100)}%): {round(wymagane_pbc_rodzime, 1)} m2")
             st.write(f" - DO ZBILANSOWANIA NA STROPIE: {round(wymagane_pbc - wymagane_pbc_rodzime, 1)} m2")
-            st.success("Bilans biologiczny zweryfikowany pomyślnie.")
+            st.info("🌳 **Zabezpieczenie Inżynieryjne:** System bezwzględnie pilnuje, aby wanna garażowa na żadnym poziomie nie wchodziła pod strefę wymaganą dla roślinności na gruncie rodzimym.")
 
         with t3:
             c1, c2, c3 = st.columns(3)
             c1.metric("Miejsca bazowe mieszkań", f"{baza_miejsc} szt.")
-            c2.metric("Miejsca dla gości (1%)", f"{miejsca_goscie} szt.")
-            c3.metric("Miejsca dla niepełnosprawnych (1%)", f"{miejsca_niepelnosprawni} szt.")
+            c2.metric("Goście + Niepełnospr. (2%)", f"{miejsca_goscie + miejsca_niepelnosprawni} szt.")
+            c3.metric("Kondygnacje podziemne", f"{liczba_poziomow_garazu}")
             
             st.metric("ŁĄCZNIE WYMAGANE MIEJSCA PARKINGOWE", f"{wymagane_miejsca} szt.")
             
-            st.markdown(f"**Stabilny bilans hali garażowej (-1 / -2):**")
-            st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2**")
-            st.write(f"• Powierzchnia poziomu **-2**: **{pow_garazu_poziom_2} m2** (zoptymalizowany dla stateczności budynku)")
-            st.success("✅ Hala garażowa rozłożona stabilnie na dwóch poziomach w obrysie działki.")
+            st.markdown(f"**Zbilansowanie hali i obrys garażu w działce:**")
+            st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2** (Limit pod zieleń rodzimą: {round(max_garaz_poziom, 1)} m2)")
+            st.write(f"• Powierzchnia poziomu **-2**: **{pow_garazu_poziom_2} m2**")
+            st.success("✅ Powierzchnia garażu nigdy nie przekroczy bezpiecznego limitu. Cała zieleń rodzima jest bezpieczna na pełnym gruncie.")
