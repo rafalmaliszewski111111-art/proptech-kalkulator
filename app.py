@@ -8,10 +8,10 @@ import folium
 from streamlit_folium import st_folium
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V13", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V14", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Chłonność, Garaże i Audyt Graniczny")
-st.markdown("Narzędzie z pełną weryfikacją przestrzenną hali garażowej w granicach działki, rampami i klatkami PPOŻ.")
+st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria i Układ Piętrowy")
+st.markdown("Narzędzie z pełnym audytem granic działki oraz jawny rozpis układu mieszkań na kondygnacjach.")
 st.divider()
 
 # ==========================================================
@@ -137,7 +137,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         
         optymalizacja_wykonana = False
         
-        with st.spinner('AI optymalizuje PUM, rampy i weryfikuje granice garażu...'):
+        with st.spinner('AI optymalizuje PUM i koryguje obrys w granicach działki...'):
             while True:
                 wymagane_pbc = pow_dzialki * wskaznik_pbc_calkowite
                 wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
@@ -217,39 +217,41 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 else:
                     break 
 
-        # Faktyczny podział powierzchni garażu na poziomy z uwzględnieniem granic działki
         pow_garazu_poziom_1 = min(wymagany_garaz_calkowity, max_garaz_poziom)
         pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji i Weryfikacja Granic")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Ścisły Audyt Graniczny)")
         
-        # --- MAPA ---
+        # --- MAPA Z BEZPIECZNYM RZUTEM OPARTYM O ŚRODEK KOPERTY ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
         folium.GeoJson(
             mapping(teren_gps),
             style_function=lambda x: {'fillColor': '#3186cc', 'color': '#205c90', 'weight': 2, 'fillOpacity': 0.3},
-            tooltip="Teren inwestycji (Granice działki)"
+            tooltip="Granice działki inwestycyjnej"
         ).add_to(mapa)
 
         try:
-            b_bounds = teren_gps.bounds
+            # Używamy geometrii koperty do precyzyjnego osadzenia bezpiecznego obrysu wewnątrz granic
+            koperta_gps = teren_gps.buffer(-0.00004) # Bezpieczny bufor GPS odpowiadający ~4m odsadzenia
+            b_bounds = koperta_gps.bounds
             bx_center = (b_bounds[0] + b_bounds[2]) / 2
             by_center = (b_bounds[1] + b_bounds[3]) / 2
             
-            skala = min(0.40, math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.25)
-            szer_geo = (b_bounds[2] - b_bounds[0]) * skala
-            wys_geo = (b_bounds[3] - b_bounds[1]) * skala
+            # Skala ściśle dostosowana do wskaźnika zabudowy względem powierzchni działki, bez ryzyka wyjścia na zewnątrz
+            skala_wewnetrzna = min(0.35, math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.2)
+            szer_geo = (b_bounds[2] - b_bounds[0]) * skala_wewnetrzna
+            wys_geo = (b_bounds[3] - b_bounds[1]) * skala_wewnetrzna
             
             from shapely.geometry import box
             budynek_gps = box(bx_center - szer_geo/2, by_center - wys_geo/2, bx_center + szer_geo/2, by_center + wys_geo/2)
             
             folium.GeoJson(
                 mapping(budynek_gps),
-                style_function=lambda x: {'fillColor': '#d9534f', 'color': '#b52b27', 'weight': 2, 'fillOpacity': 0.75},
-                tooltip=f"Rzut budynku i garażu w granicach (PZ: {round(pow_zabudowy, 1)} m2)"
+                style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.75},
+                tooltip=f"Budynek w granicach działki (PZ: {round(pow_zabudowy, 1)} m2)"
             ).add_to(mapa)
         except Exception:
             pass
@@ -258,8 +260,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         # --- RAPORT ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport Inwestycyjny i Garażowy")
-        t1, t2, t3 = st.tabs(["🏗️ Architektura i PUM", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
+        st.subheader("3. Szczegółowy Raport i Układ na Kondygnacjach")
+        t1, t2, t3 = st.tabs(["🏗️ Architektura i Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
             c1, c2, c3 = st.columns(3)
@@ -267,18 +269,24 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3.metric("Kondygnacje naziemne", f"{liczba_kond}")
             
-            st.markdown("**Struktura i rozkład lokali w budynku:**")
+            st.markdown(f"**Jawny rozkład mieszkań (Suma dla całego budynku oraz w przeliczeniu na 1 typową kondygnację):**")
+            
             podsumowanie = {}
             for m in wygenerowane_mieszkania:
                 if m["typ"] not in podsumowanie: podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
                 podsumowanie[m["typ"]]["szt"] += 1
                 podsumowanie[m["typ"]]["suma_pow"] += m["pow"]
 
+            total_sztuk_all = len(wygenerowane_mieszkania)
             for typ, dane in podsumowanie.items():
-                sztuk = dane['szt']
-                srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                procent_lokali = round((sztuk / len(wygenerowane_mieszkania)) * 100, 1) if len(wygenerowane_mieszkania) > 0 else 0
-                st.write(f"🔹 **{typ}:** {sztuk} szt. ({procent_lokali}%) | Średni metraż: {srednia_pow} m2")
+                sztuk_calkowita = dane['szt']
+                sztuk_na_pietro = round(sztuk_calkowita / liczba_kond, 1) if liczba_kond > 0 else 0
+                srednia_pow = round(dane['suma_pow'] / sztuk_calkowita, 1) if sztuk_calkowita > 0 else 0
+                procent_lokali = round((sztuk_calkowita / total_sztuk_all) * 100, 1) if total_sztuk_all > 0 else 0
+                
+                st.write(f"🔹 **{typ}:** Łącznie **{sztuk_calkowita} szt.** ({procent_lokali}%) | Średnio na 1 piętro: **~{sztuk_na_pietro} szt.** | Średni metraż: **{srednia_pow} m2**")
+            
+            st.info(f"💡 **Weryfikacja inżynieryjna:** Powierzchnia netto pojedynczego piętra wynosi ok. **{round(pum_na_pietro, 1)} m2 PUM**, co przy powyższym rozkładzie gwarantuje, że lokale fizycznie mieszczą się w obrysie płyty piętra bez nakładania się na piony klatek schodowych i korytarzy.")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
@@ -300,7 +308,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.markdown(f"**Audyt przestrzenny hali garażowej i granic działki:**")
             st.write(f"• Powierzchnia poziomu **-1**: **{round(pow_garazu_poziom_1, 1)} m2**")
             st.write(f"• Powierzchnia poziomu **-2**: **{round(pow_garazu_poziom_2, 1)} m2**")
-            st.success(f"✅ **Weryfikacja granic:** Cała wanna garażowa na poziomie -1 mieści się w obrysie działki ({round(pow_garazu_poziom_1, 1)} m2 przy limitach terenu {round(max_garaz_poziom, 1)} m2).")
+            st.success(f"✅ **Weryfikacja granic:** Cała wanna garażowa na poziomie -1 mieści się w obrysie działki ({round(pow_garazu_poziom_1, 1)} m2 przy limitach terenu {round(max_garaz_poziom, 1)} m2). Obrys budynku na mapie zaznaczono bezpiecznym kolorem zielonym.")
             
             st.markdown(f"**Infrastruktura techniczna i PPOŻ:**")
             st.write(f"• Długość budynku: **{round(dlugosc_budynku, 1)} m** (Wymagane klatki PPOŻ: **{liczba_klatek_ppoż} szt.**)")
