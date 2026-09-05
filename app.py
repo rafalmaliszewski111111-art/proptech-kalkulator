@@ -4,17 +4,17 @@ import math
 from shapely import wkt
 from shapely.geometry import mapping, box, Polygon
 from shapely.ops import unary_union
-from shapely.affinity import scale
+from shapely.affinity import scale, rotate, translate
 import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V22", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V23", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Rotacja Bryły, Parkingi i Zakładki Pięter")
-st.markdown("Narzędzie z automatycznym obrotem budynku w osi działki, precyzyjnym audytem miejsc (goście + niepełnosprawni) oraz rzutami.")
+st.title("🏗️ PRO-DEVELOPER AI: Rotacja, Gabaryty i Układ Pięter")
+st.markdown("Narzędzie z automatycznym obrotem budynku równolegle do działki, audytem miejsc (goście + niepełnosprawni) oraz rzutami.")
 st.divider()
 
 # ==========================================================
@@ -131,8 +131,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
-        max_h = max_wysokosc_mpzp
-        liczba_kond = max(1, math.floor(max_h / wys_kond_nadziemna))
+        liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
 
         # ==========================================================
         # SILNIK OBLICZENIOWY BEZSTRATNY
@@ -182,7 +181,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
             wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
-        # Parkingi z uwzględnieniem 1% dla gości oraz 1% dla osób niepełnosprawnych
+        # Precyzyjny bilans miejsc parkingowych z uwzględnieniem dodatków MPZP (Goście + Niepełnosprawni)
         baza_miejsc = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
         miejsca_goscie = math.ceil(baza_miejsc * 0.01)
         miejsca_niepelnosprawni = math.ceil(baza_miejsc * 0.01)
@@ -202,7 +201,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             pow_garazu_poziom_2 = 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Obrócony Obrys w Osi Działki)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Obrót wg Geometrii Działki)")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -214,22 +213,52 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            # Używamy minimalnego obróconego prostokąta działki GPS, aby bryła idealnie naśladowała kąt i obrót działki
-            mrr_gps = teren_gps.buffer(-0.00004).minimum_rotated_rectangle
-            if not mrr_gps.is_empty:
-                # Skalujemy obrócony prostokąt, aby dopasować go do powierzchni zabudowy
-                scale_factor = math.sqrt(min(pow_zabudowy / pow_dzialki, 0.25) / max(0.001, mrr_gps.area))
-                budynek_gps_rotated = scale(mrr_gps, xfact=scale_factor, yofact=scale_factor, origin='centroid').intersection(teren_gps)
-                
-                if budynek_gps_rotated.is_empty:
-                    budynek_gps_rotated = teren_gps.buffer(-0.00005)
+            # Algorytm idealnego wpasowania budynku w oparciu o najdłuższą krawędź
+            cx = teren_gps.centroid.x
+            cy = teren_gps.centroid.y
+            
+            # Przelicznik metrów na stopnie geograficzne dla długości (Lat) i szerokości (Lon)
+            m_to_deg_lat = 1 / 111320.0
+            m_to_deg_lon = 1 / (111320.0 * math.cos(math.radians(cy)))
+            
+            szer_deg = szerokosc_traktu * m_to_deg_lon
+            dlug_deg = dlugosc_budynku * m_to_deg_lat
+            
+            # Tworzymy surowe pudełko o wymiarach budynku
+            unrotated_box = box(-szer_deg/2, -dlug_deg/2, szer_deg/2, dlug_deg/2)
+            translated_box = translate(unrotated_box, xoff=cx, yoff=cy)
+            
+            # Obliczamy kąt najdłuższej krawędzi działki (Minimum Rotated Rectangle)
+            mrr = teren_gps.minimum_rotated_rectangle
+            coords = list(mrr.exterior.coords)
+            
+            d1 = math.hypot(coords[1][0] - coords[0][0], coords[1][1] - coords[0][1])
+            d2 = math.hypot(coords[2][0] - coords[1][0], coords[2][1] - coords[1][1])
+            
+            if d1 > d2:
+                dx = coords[1][0] - coords[0][0]
+                dy = coords[1][1] - coords[0][1]
             else:
-                budynek_gps_rotated = teren_gps.buffer(-0.00005)
+                dx = coords[2][0] - coords[1][0]
+                dy = coords[2][1] - coords[1][1]
+                
+            angle_deg = math.degrees(math.atan2(dy, dx))
+            
+            # Obracamy budynek tak, by układał się wzdłuż najdłuższej osi działki
+            budynek_gps_rotated = rotate(translated_box, angle_deg - 90, origin='centroid')
+            
+            # Zabezpieczenie nałożenia na działkę (obcięcie do granic parceli, jeśli zachodzi)
+            budynek_gps_rotated = budynek_gps_rotated.intersection(teren_gps)
+            if budynek_gps_rotated.is_empty:
+                 budynek_gps_rotated = teren_gps.buffer(-0.00005)
+
+            # Tooltip z fizycznymi wymiarami w metrach
+            tooltip_txt = f"Budynek (Gabaryty: {round(szerokosc_traktu, 1)}m x {round(dlugosc_budynku, 1)}m | PZ: {round(pow_zabudowy, 1)} m²)"
 
             folium.GeoJson(
                 mapping(budynek_gps_rotated),
                 style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8},
-                tooltip=f"Budynek obrócony w osi działki (PZ: {round(pow_zabudowy, 1)} m2)"
+                tooltip=tooltip_txt
             ).add_to(mapa)
         except Exception:
             pass
@@ -245,7 +274,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1, c2, c3_col = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_h}m max)")
+            c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
             st.markdown("### 📊 Zestawienie Lokali Mieszkalnych (Cały Budynek)")
             ogólne_podsumowanie = {}
@@ -265,8 +294,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
             st.divider()
             st.markdown("### 📐 Planimetryczne Rzuty Poszczególnych Kondygnacji")
-            st.info("Poniżej znajdziesz oddzielną zakładkę dla każdego piętra budynku z pełnym rozkładem mieszkań, korytarzem oraz wejściem na parterze.")
-
+            
             nazwy_zakladek = [f"Piętro {p}" for p in range(1, liczba_kond + 1)]
             zakladki_pieter = st.tabs(nazwy_zakladek)
 
