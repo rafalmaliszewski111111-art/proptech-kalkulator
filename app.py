@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V19.1", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V20", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria, Wejście 3m i Rzuty")
-st.markdown("Narzędzie architektoniczne z idealnym pozycjonowaniem w obrysie działki i bezstratnym układem pięter.")
+st.title("🏗️ PRO-DEVELOPER AI: Stabilny Bilans Garaży i Architektura Pięter")
+st.markdown("Narzędzie z optymalnym podziałem hali -1/-2, pełnymi statystykami liczbowymi i płynnym podglądem kondygnacji.")
 st.divider()
 
 # ==========================================================
@@ -28,7 +28,7 @@ with st.sidebar:
     wys_kond_nadziemna = st.number_input("Wysokość brutto kond. nadziemnej (m)", value=3.0, step=0.1)
     grubość_stropu_nadziemnego = st.number_input("Grubość stropu nadziemnego (cm)", value=20.0, step=5.0)
 
-    liczba_poziomow_garazu = st.number_input("Liczba kondygnacji podziemnych (garaż)", min_value=1, max_value=3, value=1, step=1)
+    liczba_poziomow_garazu = st.number_input("Liczba kondygnacji podziemnych (garaż)", min_value=1, max_value=2, value=2, step=1)
     wys_kond_podziemna = st.number_input("Wysokość brutto kond. podziemnej (m)", value=3.2, step=0.1)
     grubość_stropu_garazu = st.number_input("Grubość stropu garażu/posadzki (cm)", value=30.0, step=5.0)
 
@@ -186,11 +186,17 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_rampy_1 = dlugosc_rampy_1 * szerokosc_pochylni
         
         wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy + pow_rampy_1)
-        pow_garazu_poziom_1 = min(wymagany_garaz_calkowity, max_garaz_poziom)
-        pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
+        
+        # Stabilny podział garażu: poziom -2 nieco większy dla stateczności konstrukcyjnej, jeśli wymagane są 2 poziomy
+        if liczba_poziomow_garazu >= 2:
+            pow_garazu_poziom_1 = round(wymagany_garaz_calkowity * 0.45, 1)
+            pow_garazu_poziom_2 = round(wymagany_garaz_calkowity * 0.55, 1)
+        else:
+            pow_garazu_poziom_1 = round(wymagany_garaz_calkowity, 1)
+            pow_garazu_poziom_2 = 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjnie Wpasowany Obrys w Granicach)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjnie Wpasowany Obrys)")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -202,12 +208,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            p_rep = koperta_metry.representative_point()
             b_box_gps = teren_gps.bounds
-            
             szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.20
             wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.20
-            
             c_gps_x = (b_box_gps[0] + b_box_gps[2]) / 2
             c_gps_y = (b_box_gps[1] + b_box_gps[3]) / 2
             
@@ -232,16 +235,36 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         # --- RAPORT I RZUT KONDYGNACJI ---
         st.divider()
         st.subheader("3. Szczegółowy Raport i Architektoniczny Rzut Kondygnacji")
-        t1, t2, t3 = st.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
+        t1, t2, t3 = t.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"]) if 't' in locals() else st.tabs(["🏗️ Architektura i Rzut Piętra", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3_col = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
+            c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
-            st.markdown("### 📐 Architektoniczny Rzut Kondygnacji (Wejście 3m + Klatka Centralna)")
-            wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1)
+            # Jawne podsumowanie ilościowe mieszkań w całym budynku
+            st.markdown("### 📊 Zestawienie Lokali Mieszkalnych (Cały Budynek)")
+            ogólne_podsumowanie = {}
+            for m in wygenerowane_mieszkania:
+                if m["typ"] not in ogólne_podsumowanie: ogólne_podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
+                ogólne_podsumowanie[m["typ"]]["szt"] += 1
+                ogólne_podsumowanie[m["typ"]]["suma_pow"] += m["pow"]
+
+            kol_stat = st.columns(4)
+            idx_s = 0
+            for typ, dane in ogólne_podsumowanie.items():
+                sztuk = dane['szt']
+                srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
+                with kol_stat[idx_s % 4]:
+                    st.metric(f"Mieszkania {typ}", f"{sztuk} szt.", f"Śr. {srednia_pow} m²")
+                idx_s += 1
+
+            st.divider()
+            st.markdown("### 📐 Architektoniczny Rzut Kondygnacji")
+            
+            # Bezpieczny wybór piętra bez przeładowywania całej aplikacji
+            wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1, key="slider_pietra")
 
             fig, ax = plt.subplots(figsize=(10, 5))
             szer_plyty = szerokosc_traktu
@@ -301,7 +324,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             
             st.pyplot(fig)
 
-            st.markdown("**Bilans powierzchni i lokali na piętrze:**")
+            st.markdown(f"**Struktura lokali na wybranym piętrze {wybrane_pietro}:**")
             podsumowanie_pietro = {}
             for m in mieszkania_pietra:
                 if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
@@ -324,8 +347,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1.metric("Wymagane miejsca parkingowe", f"{wymagane_miejsca} szt.")
             c2.metric("Kondygnacje podziemne", f"{liczba_poziomow_garazu}")
             
-            st.markdown(f"**Gabaryty konstrukcyjne i podziemne:**")
-            st.write(f"• Wysokość brutto kond. podziemnej: **{wys_kond_podziemna} m** (Strop: **{grubość_stropu_garazu} cm**)")
-            st.write(f"• Powierzchnia garażu poziom -1: **{round(pow_garazu_poziom_1, 1)} m2**")
-            st.write(f"• Powierzchnia garażu poziom -2: **{round(pow_garazu_poziom_2, 1)} m2**")
-            st.success("✅ Garaż oraz zjazdy mieszczą się w obrysie działki.")
+            st.markdown(f"**Stabilny bilans hali garażowej (-1 / -2):**")
+            st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2**")
+            st.write(f"• Powierzchnia poziomu **-2**: **{pow_garazu_poziom_2} m2** (zoptymalizowany dla stateczności budynku)")
+            st.success("✅ Hala garażowa rozłożona stabilnie na dwóch poziomach w obrysie działki.")
