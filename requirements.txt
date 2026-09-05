@@ -1,0 +1,5 @@
+streamlit
+requests
+shapely
+folium
+streamlit-folium
