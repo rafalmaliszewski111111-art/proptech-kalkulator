@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V19", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V19.1", layout="wide")
 
 st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Geometria, Wejście 3m i Rzuty")
 st.markdown("Narzędzie architektoniczne z idealnym pozycjonowaniem w obrysie działki i bezstratnym układem pięter.")
@@ -192,7 +192,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         st.divider()
         st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjnie Wpasowany Obrys w Granicach)")
         
-        # --- MAPA Z OPTYMALNYM DOPASOWANIEM DO KOPERTY DZIAŁKI ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
@@ -203,11 +202,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            # Używamy geometrycznego środka koperty działki, rzutując proporcjonalny obrys ściśle wewnątrz
             p_rep = koperta_metry.representative_point()
             b_box_gps = teren_gps.bounds
             
-            # Skala dopasowana gabarytowo do powierzchni zabudowy tak, by budynek leżał w osi działki
             szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.20
             wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.20
             
@@ -241,7 +238,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1, c2, c3 = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysok_mpzp}m max)")
+            c3.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
             st.markdown("### 📐 Architektoniczny Rzut Kondygnacji (Wejście 3m + Klatka Centralna)")
             wybrane_pietro = st.slider("Wybierz kondygnację do wizualizacji:", min_value=1, max_value=int(liczba_kond), value=1)
@@ -250,16 +247,13 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             szer_plyty = szerokosc_traktu
             dl_plyty = pow_zabudowy / szerokosc_traktu
             
-            # Obrys kondygnacji
             plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
             ax.add_patch(plyta)
             
-            # Centralna klatka schodowa i piony (nie blokuje elewacji)
             klatka_srodek = patches.Rectangle((dl_plyty/2 - 2.0, 0), 4.0, szer_plyty, linewidth=1.5, edgecolor='#dc3545', facecolor='#f8d7da', hatch='X')
             ax.add_patch(klatka_srodek)
             ax.text(dl_plyty/2, szer_plyty/2, "KLATKA SCHODOWA\n+ PIONY / WINDA", color='#721c24', fontsize=8, ha='center', va='center', weight='bold', rotation=90)
 
-            # Korytarze osiowe łączące skrzydła z klatką
             korytarz_lewy = patches.Rectangle((2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
             korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
             ax.add_patch(korytarz_lewy)
@@ -268,7 +262,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             ax.text(3*dl_plyty/4, szer_plyty/2, "KORYTARZ", color='#495057', fontsize=7, ha='center', va='center')
 
             if wybrane_pietro == 1:
-                # Wejście główne o szerokości dokładnie 3 metrów na parterze
                 wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
                 ax.add_patch(wejscie)
                 ax.text(dl_plyty/2, -1.0, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=8, ha='center', weight='bold')
@@ -278,7 +271,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             
             polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
             
-            # Rozmieszczenie mieszkań w skrzydle lewym
             for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
                 strona = i % 2
                 x_pos = 0.5 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil(polowa_sztuk/2))
@@ -290,7 +282,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 ax.add_patch(lokal)
                 ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=7, ha='center', va='center', weight='bold')
 
-            # Rozmieszczenie mieszkań w skrzydle prawym
             for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
                 strona = i % 2
                 x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
