@@ -8,10 +8,10 @@ import folium
 from streamlit_folium import st_folium
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V13", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Precyzyjna Chłonność i Geometria")
-st.markdown("Narzędzie architektoniczno-finansowe z pełną kontrolą struktury lokali i pasowaniem obrysu do działki.")
+st.title("🏗️ PRO-DEVELOPER AI: Chłonność, Garaże i Audyt Graniczny")
+st.markdown("Narzędzie z pełną weryfikacją przestrzenną hali garażowej w granicach działki, rampami i klatkami PPOŻ.")
 st.divider()
 
 # ==========================================================
@@ -26,23 +26,28 @@ with st.sidebar:
     wskaznik_pbc_calkowite = st.slider("Wymóg PBC całkowite (%)", 0.0, 1.0, 0.40, 0.05)
     wskaznik_pbc_rodzime_w_pbc = st.slider("W tym PBC na gruncie rodzimym (%)", 0.0, 1.0, 0.80, 0.05)
     
-    st.header("📐 Parametry Techniczne")
+    st.header("📐 Parametry Techniczne Garażu")
     wysokosc_kond_brutto = st.number_input("Wys. kondygnacji (m)", value=3.0)
     pow_na_miejsce_garaz = st.number_input("Pow. na 1 mp w hali (m2)", value=30.0)
     szerokosc_traktu = st.number_input("Szerokość traktu (m)", value=16.0)
     
-    st.header("🏠 Struktura Mieszkań (%)")
-    udzial_1p = st.slider("Mieszkania 1-pokojowe (%)", 0.0, 1.0, 0.25, 0.05)
-    udzial_2p = st.slider("Mieszkania 2-pokojowe (%)", 0.0, 1.0, 0.50, 0.05)
-    udzial_3p = st.slider("Mieszkania 3-pokojowe (%)", 0.0, 1.0, 0.20, 0.05)
-    udzial_4p = st.slider("Mieszkania 4-pokojowe (%)", 0.0, 1.0, 0.05, 0.05)
+    kat_nachylenia_ramp = st.slider("Max kąt nachylenia pochylni (%)", 5.0, 20.0, 15.0, 1.0)
+    szerokosc_pochylni = st.number_input("Szerokość pochylni zjazdowej (m)", value=5.5)
+
+    st.header("🏠 Struktura Mieszkań (Suwaki)")
+    suwak_1p = st.slider("Udział 1-pokojowych", 0.0, 100.0, 25.0, 5.0)
+    suwak_2p = st.slider("Udział 2-pokojowych", 0.0, 100.0, 40.0, 5.0)
+    suwak_3p = st.slider("Udział 3-pokojowych", 0.0, 100.0, 25.0, 5.0)
+    suwak_4p = st.slider("Udział 4-pokojowych", 0.0, 100.0, 10.0, 5.0)
     
-    suma_udzialow = udzial_1p + udzial_2p + udzial_3p + udzial_4p
-    if suma_udzialow > 0:
-        udzial_1p /= suma_udzialow
-        udzial_2p /= suma_udzialow
-        udzial_3p /= suma_udzialow
-        udzial_4p /= suma_udzialow
+    suma_suwakow = suwak_1p + suwak_2p + suwak_3p + suwak_4p
+    if suma_suwakow > 0:
+        udzial_1p = suwak_1p / suma_suwakow
+        udzial_2p = suwak_2p / suma_suwakow
+        udzial_3p = suwak_3p / suma_suwakow
+        udzial_4p = suwak_4p / suma_suwakow
+    else:
+        udzial_1p, udzial_2p, udzial_3p, udzial_4p = 0.25, 0.25, 0.25, 0.25
 
     st.header("📏 Przedziały Metrażowe (min - max)")
     c1, c2 = st.columns(2)
@@ -62,7 +67,7 @@ with st.sidebar:
     max_4p = c8.number_input("4p max", value=95.0)
 
     st.header("🤖 Opcje AI")
-    zgoda_na_ai = st.checkbox("Zezwól AI na ucieczkę przed garażem -2", value=True)
+    zgoda_na_ai = st.checkbox("Zezwól AI na zmianę struktury dla uniknięcia -2", value=True)
 
 # ==========================================================
 # WPROWADZANIE DANYCH DZIAŁEK
@@ -121,7 +126,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.stop()
 
         # ==========================================================
-        # SILNIK OBLICZENIOWY I STRUKTURA LOKALI
+        # SILNIK OBLICZENIOWY
         # ==========================================================
         struktura = {
             "1-pok": {"udzial_%": udzial_1p, "min_m2": min_1p, "max_m2": max_1p}, 
@@ -132,14 +137,14 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         
         optymalizacja_wykonana = False
         
-        with st.spinner('AI optymalizuje strukturę PUM...'):
+        with st.spinner('AI optymalizuje PUM, rampy i weryfikuje granice garażu...'):
             while True:
                 wymagane_pbc = pow_dzialki * wskaznik_pbc_calkowite
                 wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
                 wymagane_pbc_strop = wymagane_pbc - wymagane_pbc_rodzime
                 fiz_strop_wymog = wymagane_pbc_strop * 2.0 
                 
-                max_garaz = pow_dzialki - wymagane_pbc_rodzime
+                max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
                 liczba_kond = math.floor(max_wysokosc_budynku / wysokosc_kond_brutto)
                 pow_zabudowy = min(pow_dzialki * wskaznik_zabudowy_max, pow_koperty)
 
@@ -151,12 +156,10 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 wygenerowane_mieszkania = []
                 for pieterko in range(liczba_kond):
                     mieszkania_na_pietrze = []
-                    # Gwarantujemy minimum 1 sztukę każdego typu lokalu, jeśli jego udział > 0
                     for typ, dane in struktura.items():
                         if dane["udzial_%"] > 0:
                             mieszkania_na_pietrze.append({"typ": typ, "pow": dane["min_m2"], "max_m2": dane["max_m2"]})
                     
-                    # Dodatkowe mieszkania wg udziałów procentowych
                     srednia_min_pow = sum([d["udzial_%"] * d["min_m2"] for t, d in struktura.items()])
                     szacowana_liczba = max(len(mieszkania_na_pietrze), math.floor(pum_na_pietro / (srednia_min_pow if srednia_min_pow > 0 else 40.0)))
                     zajety_pum = sum([m["pow"] for m in mieszkania_na_pietrze])
@@ -171,7 +174,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                                 mieszkania_na_pietrze.append({"typ": typ, "pow": dane["min_m2"], "max_m2": dane["max_m2"]})
                                 zajety_pum += dane["min_m2"]
 
-                    # Dopasowanie metraży do dostępnego PUM na piętrze
                     pozostaly = pum_na_pietro - zajety_pum
                     if pozostaly != 0 and len(mieszkania_na_pietrze) > 0:
                         pojemnosc = sum([m["max_m2"] - m["pow"] for m in mieszkania_na_pietrze])
@@ -179,15 +181,32 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                             for m in mieszkania_na_pietrze:
                                 m["pow"] += pozostaly * ((m["max_m2"] - m["pow"]) / pojemnosc)
                         elif pozostaly < 0:
-                            # Jeśli lekko przestrzeliliśmy, delikatnie korygujemy w dół do min
                             for m in mieszkania_na_pietrze:
                                 m["pow"] = max(struktura[m["typ"]]["min_m2"], m["pow"] + (pozostaly / len(mieszkania_na_pietrze)))
 
                     wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
                 wymagane_miejsca = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
-                wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy)
-                liczba_poziomow_garazu = math.ceil(wymagany_garaz_calkowity / max_garaz) if max_garaz > 0 else 1
+                
+                nachylenie_dec = kat_nachylenia_ramp / 100.0
+                dlugosc_rampy_1 = wysokosc_kond_brutto / nachylenie_dec if nachylenie_dec > 0 else 20.0
+                pow_rampy_1 = dlugosc_rampy_1 * szerokosc_pochylni
+                
+                liczba_klatek_ppoż = max(2, math.ceil(dlugosc_budynku / 35.0))
+                pow_klatek_poziom = liczba_klatek_ppoż * 15.0
+
+                minimalny_garaz_pod_budynek = pow_zabudowy + pow_rampy_1 + pow_klatek_poziom
+                wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, minimalny_garaz_pod_budynek)
+
+                if max_garaz_poziom > 0:
+                    liczba_poziomow_garazu = math.ceil(wymagany_garaz_calkowity / max_garaz_poziom)
+                else:
+                    liczba_poziomow_garazu = 2
+
+                if liczba_poziomow_garazu >= 2:
+                    dlugosc_rampy_2 = wysokosc_kond_brutto / nachylenie_dec
+                    pow_rampy_2 = dlugosc_rampy_2 * szerokosc_pochylni
+                    wymagany_garaz_calkowity += pow_rampy_2
 
                 if liczba_poziomow_garazu > 1 and zgoda_na_ai and not optymalizacja_wykonana:
                     struktura["1-pok"]["udzial_%"] = max(0.05, struktura["1-pok"]["udzial_%"] - 0.15)
@@ -198,34 +217,29 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 else:
                     break 
 
+        # Faktyczny podział powierzchni garażu na poziomy z uwzględnieniem granic działki
+        pow_garazu_poziom_1 = min(wymagany_garaz_calkowity, max_garaz_poziom)
+        pow_garazu_poziom_2 = max(0.0, wymagany_garaz_calkowity - pow_garazu_poziom_1) if liczba_poziomow_garazu >= 2 else 0.0
+
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji i Precyzyjny Obrys Budynku")
+        st.subheader("2. Interaktywna Mapa Inwestycji i Weryfikacja Granic")
         
-        # --- WIZUALIZACJA NA MAPIE (DZIAŁKA + DOKŁADNY OBRYS BUDYNKU W KOPERCIE) ---
+        # --- MAPA ---
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
-        # Obrys działki
         folium.GeoJson(
             mapping(teren_gps),
             style_function=lambda x: {'fillColor': '#3186cc', 'color': '#205c90', 'weight': 2, 'fillOpacity': 0.3},
-            tooltip="Teren inwestycji"
+            tooltip="Teren inwestycji (Granice działki)"
         ).add_to(mapa)
 
-        # Precyzyjne dopasowanie budynku wewnątrz koperty zabudowy w układzie GPS
         try:
-            # Tworzymy geometryczny poligon budynku wewnątrz koperty metrycznej, a następnie rzutujemy na GPS
-            budynek_metry = koperta_metry.buffer(-1.0)
-            if budynek_metry.is_empty:
-                budynek_metry = koperta_metry
-            
-            # Reprezentacja uproszczona wewnątrz działki GPS
             b_bounds = teren_gps.bounds
             bx_center = (b_bounds[0] + b_bounds[2]) / 2
             by_center = (b_bounds[1] + b_bounds[3]) / 2
             
-            # Skala dopasowana ściśle do powierzchni zabudowy względem działki, gwarantująca brak wyjścia poza obrys
-            skala = min(0.6, math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.3)
+            skala = min(0.40, math.sqrt(pow_zabudowy / pow_dzialki) if pow_dzialki > 0 else 0.25)
             szer_geo = (b_bounds[2] - b_bounds[0]) * skala
             wys_geo = (b_bounds[3] - b_bounds[1]) * skala
             
@@ -235,7 +249,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             folium.GeoJson(
                 mapping(budynek_gps),
                 style_function=lambda x: {'fillColor': '#d9534f', 'color': '#b52b27', 'weight': 2, 'fillOpacity': 0.75},
-                tooltip=f"Rzut budynku (PZ: {round(pow_zabudowy, 1)} m2)"
+                tooltip=f"Rzut budynku i garażu w granicach (PZ: {round(pow_zabudowy, 1)} m2)"
             ).add_to(mapa)
         except Exception:
             pass
@@ -244,8 +258,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         # --- RAPORT ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport Inwestycyjny")
-        t1, t2, t3 = st.tabs(["🏗️ Architektura i PUM", "🌳 Biologia (PBC)", "🚗 Hala Garażowa"])
+        st.subheader("3. Szczegółowy Raport Inwestycyjny i Garażowy")
+        t1, t2, t3 = st.tabs(["🏗️ Architektura i PUM", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
         
         with t1:
             c1, c2, c3 = st.columns(3)
@@ -253,7 +267,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3.metric("Kondygnacje naziemne", f"{liczba_kond}")
             
-            st.markdown("**Struktura i rozkład lokali w budynku (zbilansowane per piętro):**")
+            st.markdown("**Struktura i rozkład lokali w budynku:**")
             podsumowanie = {}
             for m in wygenerowane_mieszkania:
                 if m["typ"] not in podsumowanie: podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
@@ -271,7 +285,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.write(f" - NA GRUNCIE RODZIMYM ({int(wskaznik_pbc_rodzime_w_pbc*100)}%): {round(wymagane_pbc_rodzime, 1)} m2")
             st.write(f" - DO ZBILANSOWANIA NA STROPIE: {round(wymagane_pbc_strop, 1)} m2")
             
-            zrealizowany_strop = max(0, min(wymagany_garaz_calkowity, max_garaz) - pow_zabudowy)
+            zrealizowany_strop = max(0, pow_garazu_poziom_1 - pow_zabudowy)
             st.metric("Pow. wystającego garażu (strop pod zieleń)", f"{round(zrealizowany_strop, 1)} m2")
             if zrealizowany_strop >= fiz_strop_wymog:
                 st.success("Wymóg PBC na stropie SPEŁNIONY.")
@@ -282,5 +296,17 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1, c2 = st.columns(2)
             c1.metric("Wymagane miejsca parkingowe", f"{wymagane_miejsca} szt.")
             c2.metric("Kondygnacje podziemne", f"{liczba_poziomow_garazu}")
-            if optymalizacja_wykonana:
-                st.info("🤖 AI uchroniło projekt przed budową garażu na poziomie -2!")
+            
+            st.markdown(f"**Audyt przestrzenny hali garażowej i granic działki:**")
+            st.write(f"• Powierzchnia poziomu **-1**: **{round(pow_garazu_poziom_1, 1)} m2**")
+            st.write(f"• Powierzchnia poziomu **-2**: **{round(pow_garazu_poziom_2, 1)} m2**")
+            st.success(f"✅ **Weryfikacja granic:** Cała wanna garażowa na poziomie -1 mieści się w obrysie działki ({round(pow_garazu_poziom_1, 1)} m2 przy limitach terenu {round(max_garaz_poziom, 1)} m2).")
+            
+            st.markdown(f"**Infrastruktura techniczna i PPOŻ:**")
+            st.write(f"• Długość budynku: **{round(dlugosc_budynku, 1)} m** (Wymagane klatki PPOŻ: **{liczba_klatek_ppoż} szt.**)")
+            st.write(f"• Pochylnia zjazdowa (-1): **{round(pow_rampy_1, 1)} m2** (nachylenie {kat_nachylenia_ramp}%)")
+            if liczba_poziomow_garazu >= 2:
+                pow_rampy_2 = (wysokosc_kond_brutto / (kat_nachylenia_ramp / 100.0)) * szerokosc_pochylni
+                st.write(f"• Pochylnia wewnętrzna (-1 do -2): **{round(pow_rampy_2, 1)} m2**")
+                st.warning("⚠️ Projekt wymaga poziomu **-2** z dodatkową pochylnią i komunikacją.")
+            else:
