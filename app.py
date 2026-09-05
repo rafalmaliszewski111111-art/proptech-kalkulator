@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V26", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V27", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Geometria, Draw i Pomiary Liniowe")
-st.markdown("Narzędzie z blokadą traktu, ortogonalnym obrysem, narzędziem Draw i miarką odległości na żywo.")
+st.title("🏗️ PRO-DEVELOPER AI: Geometria, Pomiary i Finanse")
+st.markdown("Kompleksowe narzędzie z blokadą traktu, ortogonalnym obrysem, miarką odległości i kalkulatorem rentowności (ROI).")
 st.divider()
 
 # ==========================================================
@@ -62,18 +62,22 @@ with st.sidebar:
     c1, c2 = st.columns(2)
     min_1p = c1.number_input("1p min", value=26.0)
     max_1p = c2.number_input("1p max", value=35.0)
-    
     c3, c4 = st.columns(2)
     min_2p = c3.number_input("2p min", value=38.0)
     max_2p = c4.number_input("2p max", value=52.0)
-
     c5, c6 = st.columns(2)
     min_3p = c5.number_input("3p min", value=56.0)
     max_3p = c6.number_input("3p max", value=72.0)
-
     c7, c8 = st.columns(2)
     min_4p = c7.number_input("4p min", value=76.0)
     max_4p = c8.number_input("4p max", value=95.0)
+
+    st.header("💰 Parametry Finansowe")
+    cena_pum = st.number_input("Cena sprzedaży 1 m² PUM (PLN)", value=12000, step=500)
+    cena_mp = st.number_input("Cena sprzedaży miejsca postojowego (PLN)", value=40000, step=1000)
+    koszt_pc_nadziemna = st.number_input("Koszt budowy 1 m² PC nadziemnej (PLN)", value=5500, step=100)
+    koszt_pc_podziemna = st.number_input("Koszt budowy 1 m² PC podziemnej (PLN)", value=3500, step=100)
+    koszt_dzialki = st.number_input("Cena zakupu gruntu (PLN)", value=3000000, step=100000)
 
 # ==========================================================
 # WPROWADZANIE DANYCH DZIAŁEK
@@ -191,7 +195,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             "4-pok": {"udzial_%": udzial_4p, "min_m2": min_4p, "max_m2": max_4p}
         }
         
-        wymagane_pbc_rodzime = pow_dzialki * wskaznik_pbc_calkowite * wskaznik_pbc_rodzime_w_pbc
+        # POPRAWKA BŁĘDU (Zmienna PBC przypisana globalnie w silniku)
+        wymagane_pbc = pow_dzialki * wskaznik_pbc_calkowite
+        wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
         max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
         
         pow_korytarza_pietro = max(12.0, dlugosc_budynku * 1.5)
@@ -261,8 +267,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         # --- RAPORT I ZAKŁADKI KONDYGNACJI ---
         st.divider()
-        st.subheader("3. Szczegółowy Raport i Układ Kondygnacji")
-        t1, t2, t3 = st.tabs(["🏗️ Architektura i Rzuty Pięter", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ"])
+        st.subheader("3. Szczegółowy Raport Inwestycyjny")
+        t1, t2, t3, t4 = st.tabs(["🏗️ Architektura i Rzuty", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
         
         with t1:
             c1, c2, c3_col = st.columns(3)
@@ -344,20 +350,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     ax.set_ylim(-2, szer_plyty + 2)
                     ax.set_aspect('equal')
                     ax.axis('off')
-                    ax.set_title(f"Rzut Kondygnacji {pietro_nr} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=10, weight='bold')
+                    ax.set_title(f"Rzut Kondygnacji {pietro_nr}", fontsize=10, weight='bold')
                     st.pyplot(fig)
-
-                    st.markdown(f"**Statystyka Piętra {pietro_nr}:**")
-                    podsumowanie_pietro = {}
-                    for m in mieszkania_pietra:
-                        if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
-                        podsumowanie_pietro[m["typ"]]["szt"] += 1
-                        podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
-
-                    for typ, dane in podsumowanie_pietro.items():
-                        sztuk = dane['szt']
-                        srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                        st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
@@ -377,3 +371,34 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2** (Limit pod zieleń rodzimą: {round(max_garaz_poziom, 1)} m2)")
             st.write(f"• Powierzchnia poziomu **-2**: **{pow_garazu_poziom_2} m2**")
             st.success("✅ Powierzchnia garażu nigdy nie przekroczy bezpiecznego limitu. Cała zieleń rodzima jest bezpieczna na pełnym gruncie.")
+
+        with t4:
+            st.markdown("### 💰 Szacunkowy Model Finansowy (ROI)")
+            
+            przychody_pum = calkowity_pum * cena_pum
+            przychody_garaz = wymagane_miejsca * cena_mp
+            przychody_total = przychody_pum + przychody_garaz
+            
+            pc_nadziemna = pow_zabudowy * liczba_kond
+            pc_podziemna = pow_garazu_poziom_1 + pow_garazu_poziom_2
+            
+            koszt_budowy_nad = pc_nadziemna * koszt_pc_nadziemna
+            koszt_budowy_pod = pc_podziemna * koszt_pc_podziemna
+            koszty_total = koszt_budowy_nad + koszt_budowy_pod + koszt_dzialki
+            
+            zysk_brutto = przychody_total - koszty_total
+            marza = (zysk_brutto / przychody_total) * 100 if przychody_total > 0 else 0
+            roi = (zysk_brutto / koszty_total) * 100 if koszty_total > 0 else 0
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Przychody (GDV)", f"{przychody_total:,.0f} PLN".replace(',', ' '))
+            c2.metric("Koszty Inwestycji (TDC)", f"{koszty_total:,.0f} PLN".replace(',', ' '))
+            c3.metric("Zysk Brutto", f"{zysk_brutto:,.0f} PLN".replace(',', ' '))
+            
+            st.write(f"• Szacowana marża na projekcie: **{round(marza, 1)}%**")
+            st.write(f"• Wskaźnik ROI (Zwrot z kosztów): **{round(roi, 1)}%**")
+            
+            if marza < 15:
+                st.warning("⚠️ Projekt o podwyższonym ryzyku. Marża deweloperska poniżej 15%.")
+            else:
+                st.success("✅ Projekt rentowny. Marża deweloperska na bezpiecznym poziomie.")
