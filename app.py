@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V25", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V26", layout="wide")
 
 st.title("🏗️ PRO-DEVELOPER AI: Geometria, Draw i Pomiary Liniowe")
 st.markdown("Narzędzie z blokadą traktu, ortogonalnym obrysem, narzędziem Draw i miarką odległości na żywo.")
@@ -57,6 +57,23 @@ with st.sidebar:
         udzial_4p = suwak_4p / suma_suwakow
     else:
         udzial_1p, udzial_2p, udzial_3p, udzial_4p = 0.25, 0.25, 0.25, 0.25
+
+    st.header("📏 Przedziały Metrażowe (min - max)")
+    c1, c2 = st.columns(2)
+    min_1p = c1.number_input("1p min", value=26.0)
+    max_1p = c2.number_input("1p max", value=35.0)
+    
+    c3, c4 = st.columns(2)
+    min_2p = c3.number_input("2p min", value=38.0)
+    max_2p = c4.number_input("2p max", value=52.0)
+
+    c5, c6 = st.columns(2)
+    min_3p = c5.number_input("3p min", value=56.0)
+    max_3p = c6.number_input("3p max", value=72.0)
+
+    c7, c8 = st.columns(2)
+    min_4p = c7.number_input("4p min", value=76.0)
+    max_4p = c8.number_input("4p max", value=95.0)
 
 # ==========================================================
 # WPROWADZANIE DANYCH DZIAŁEK
@@ -142,7 +159,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         szerokosc_traktu = szerokosc_traktu_input
         if szerokosc_traktu > max_wid:
-            st.error(f"⚠️ **UWAGA - TRAKT ZBYT SZEROKI:** Podana szerokość traktu ({szerokosc_traktu}m) nie mieści się w granicach nieprzekraczalnych linii zabudowy (pozostało {round(max_wid, 1)}m po odsunięciu o 4m z każdej strony). Trakt został automatycznie zredukowany do maksimum.")
+            st.error(f"⚠️ **UWAGA - TRAKT ZBYT SZEROKI:** Podana szerokość traktu ({szerokosc_traktu}m) nie mieści się w dopuszczalnym obrysie zabudowy. Trakt został automatycznie zredukowany do {round(max_wid, 1)}m.")
             szerokosc_traktu = max_wid
 
         liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
@@ -225,7 +242,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
         
-        # DODANE NARZĘDZIA: Rysowanie oraz Miarka (MeasureControl)
         Draw(export=True, position='topleft', draw_options={'polyline':True, 'polygon':True, 'rectangle':True, 'circle':False, 'marker':False, 'circlemarker':False}).add_to(mapa)
         MeasureControl(position='topright', primary_length_unit='meters', primary_area_unit='sqmeters').add_to(mapa)
 
@@ -330,6 +346,18 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     ax.axis('off')
                     ax.set_title(f"Rzut Kondygnacji {pietro_nr} (Wys. brutto: {wys_kond_nadziemna}m, Strop: {grubość_stropu_nadziemnego}cm)", fontsize=10, weight='bold')
                     st.pyplot(fig)
+
+                    st.markdown(f"**Statystyka Piętra {pietro_nr}:**")
+                    podsumowanie_pietro = {}
+                    for m in mieszkania_pietra:
+                        if m["typ"] not in podsumowanie_pietro: podsumowanie_pietro[m["typ"]] = {"szt": 0, "suma_pow": 0}
+                        podsumowanie_pietro[m["typ"]]["szt"] += 1
+                        podsumowanie_pietro[m["typ"]]["suma_pow"] += m["pow"]
+
+                    for typ, dane in podsumowanie_pietro.items():
+                        sztuk = dane['szt']
+                        srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
+                        st.write(f"🔹 **{typ}:** {sztuk} szt. | Średni metraż: {srednia_pow} m2")
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
