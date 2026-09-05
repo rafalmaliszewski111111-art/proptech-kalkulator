@@ -310,3 +310,4 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 st.write(f"• Pochylnia wewnętrzna (-1 do -2): **{round(pow_rampy_2, 1)} m2**")
                 st.warning("⚠️ Projekt wymaga poziomu **-2** z dodatkową pochylnią i komunikacją.")
             else:
+                st.success("✅ Garaż w pełni zbilansowany na jednym poziomie **-1**.")
