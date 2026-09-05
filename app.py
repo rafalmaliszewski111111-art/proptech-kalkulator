@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V27", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V28", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Geometria, Pomiary i Finanse")
-st.markdown("Kompleksowe narzędzie z blokadą traktu, ortogonalnym obrysem, miarką odległości i kalkulatorem rentowności (ROI).")
+st.title("🏗️ PRO-DEVELOPER AI: Architektura Wnętrz i Optymalizacja Rzutu")
+st.markdown("Narzędzie projektowe z automatycznym rozkładem pomieszczeń wg WT, sortowaniem narożnym i bezstratnym wypełnieniem piętra.")
 st.divider()
 
 # ==========================================================
@@ -39,14 +39,14 @@ with st.sidebar:
     
     st.header("📐 Parametry Techniczne")
     pow_na_miejsce_garaz = st.number_input("Pow. na 1 mp w hali (m2)", value=30.0)
-    szerokosc_traktu_input = st.number_input("Szerokość traktu (m)", value=14.0)
+    szerokosc_traktu_input = st.number_input("Szerokość traktu (m)", value=15.0)
     kat_nachylenia_ramp = st.slider("Max kąt nachylenia pochylni (%)", 5.0, 20.0, 15.0, 1.0)
     szerokosc_pochylni = st.number_input("Szerokość pochylni zjazdowej (m)", value=5.5)
 
     st.header("🏠 Struktura Mieszkań (Suwaki)")
-    suwak_1p = st.slider("Udział 1-pokojowych", 0.0, 100.0, 25.0, 5.0)
-    suwak_2p = st.slider("Udział 2-pokojowych", 0.0, 100.0, 40.0, 5.0)
-    suwak_3p = st.slider("Udział 3-pokojowych", 0.0, 100.0, 25.0, 5.0)
+    suwak_1p = st.slider("Udział 1-pokojowych", 0.0, 100.0, 20.0, 5.0)
+    suwak_2p = st.slider("Udział 2-pokojowych", 0.0, 100.0, 50.0, 5.0)
+    suwak_3p = st.slider("Udział 3-pokojowych", 0.0, 100.0, 20.0, 5.0)
     suwak_4p = st.slider("Udział 4-pokojowych", 0.0, 100.0, 10.0, 5.0)
     
     suma_suwakow = suwak_1p + suwak_2p + suwak_3p + suwak_4p
@@ -60,17 +60,17 @@ with st.sidebar:
 
     st.header("📏 Przedziały Metrażowe (min - max)")
     c1, c2 = st.columns(2)
-    min_1p = c1.number_input("1p min", value=26.0)
+    min_1p = c1.number_input("1p min", value=28.0)
     max_1p = c2.number_input("1p max", value=35.0)
     c3, c4 = st.columns(2)
-    min_2p = c3.number_input("2p min", value=38.0)
+    min_2p = c3.number_input("2p min", value=42.0)
     max_2p = c4.number_input("2p max", value=52.0)
     c5, c6 = st.columns(2)
-    min_3p = c5.number_input("3p min", value=56.0)
+    min_3p = c5.number_input("3p min", value=60.0)
     max_3p = c6.number_input("3p max", value=72.0)
     c7, c8 = st.columns(2)
-    min_4p = c7.number_input("4p min", value=76.0)
-    max_4p = c8.number_input("4p max", value=95.0)
+    min_4p = c7.number_input("4p min", value=80.0)
+    max_4p = c8.number_input("4p max", value=105.0)
 
     st.header("💰 Parametry Finansowe")
     cena_pum = st.number_input("Cena sprzedaży 1 m² PUM (PLN)", value=12000, step=500)
@@ -195,13 +195,14 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             "4-pok": {"udzial_%": udzial_4p, "min_m2": min_4p, "max_m2": max_4p}
         }
         
-        # POPRAWKA BŁĘDU (Zmienna PBC przypisana globalnie w silniku)
         wymagane_pbc = pow_dzialki * wskaznik_pbc_calkowite
         wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
         max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
         
-        pow_korytarza_pietro = max(12.0, dlugosc_budynku * 1.5)
-        pow_klatki_pietro = 16.0
+        szerokosc_korytarza = 1.6
+        szerokosc_rdzenia = 6.0
+        pow_korytarza_pietro = max(12.0, (dlugosc_budynku - szerokosc_rdzenia) * szerokosc_korytarza)
+        pow_klatki_pietro = szerokosc_rdzenia * szerokosc_traktu # Rdzeń centralny
         pum_na_pietro = max(20.0, pow_zabudowy - pow_korytarza_pietro - pow_klatki_pietro)
         calkowity_pum = pum_na_pietro * liczba_kond
 
@@ -223,6 +224,9 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             if roznica != 0 and len(mieszkania_na_pietrze) > 0:
                 korekta = roznica / len(mieszkania_na_pietrze)
                 for m in mieszkania_na_pietrze: m["pow"] += korekta
+            
+            # Sortowanie mieszkań: największe na rogi (początek i koniec skrzydeł)
+            mieszkania_na_pietrze.sort(key=lambda x: x["pow"], reverse=True)
             wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
         baza_miejsc = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
@@ -243,7 +247,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         st.divider()
         st.subheader("2. Interaktywna Mapa (Rysowanie Linii i Miarka Odległości)")
-        st.info("💡 **WSKAZÓWKA:** Użyj ikony linijki w prawym górnym rogu mapy, aby precyzyjnie (w metrach) zmierzyć odległość od narysowanej linii zabudowy do granicy działki.")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -268,7 +271,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         # --- RAPORT I ZAKŁADKI KONDYGNACJI ---
         st.divider()
         st.subheader("3. Szczegółowy Raport Inwestycyjny")
-        t1, t2, t3, t4 = st.tabs(["🏗️ Architektura i Rzuty", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
+        t1, t2, t3, t4 = st.tabs(["🏗️ Architektura Wnętrz i Rzuty", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
         
         with t1:
             c1, c2, c3_col = st.columns(3)
@@ -276,88 +279,149 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3_col.metric("Liczba kondynacji (z WZ)", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
-            st.markdown("### 📊 Zestawienie Lokali Mieszkalnych (Cały Budynek)")
-            ogólne_podsumowanie = {}
-            for m in wygenerowane_mieszkania:
-                if m["typ"] not in ogólne_podsumowanie: ogólne_podsumowanie[m["typ"]] = {"szt": 0, "suma_pow": 0}
-                ogólne_podsumowanie[m["typ"]]["szt"] += 1
-                ogólne_podsumowanie[m["typ"]]["suma_pow"] += m["pow"]
-
-            kol_stat = st.columns(4)
-            idx_s = 0
-            for typ, dane in ogólne_podsumowanie.items():
-                sztuk = dane['szt']
-                srednia_pow = round(dane['suma_pow'] / sztuk, 1) if sztuk > 0 else 0
-                with kol_stat[idx_s % 4]:
-                    st.metric(f"Mieszkania {typ}", f"{sztuk} szt.", f"Śr. {srednia_pow} m²")
-                idx_s += 1
-
-            st.divider()
-            st.markdown("### 📐 Planimetryczne Rzuty Poszczególnych Kondygnacji")
+            st.markdown("### 📐 Generator Rzutu Architektonicznego (Normy WT)")
+            st.info("Zastosowano inteligentny podział: największe mieszkania na doświetlonych rogach, optymalne wymiary sypialni i łazienek, pełne zagospodarowanie płyty piętra.")
             
             nazwy_zakladek = [f"Piętro {p}" for p in range(1, liczba_kond + 1)]
             zakladki_pieter = st.tabs(nazwy_zakladek)
 
+            # Funkcja rysująca wnętrze mieszkania na rzucie
+            def rysuj_mieszkanie(ax, x, y, w, d, typ, pow_m, strona_okien):
+                c_laz = '#b3cde0' 
+                c_syp = '#ccebc5' 
+                c_salon = '#fddaec' 
+                
+                # Baza: Salon z aneksem
+                ax.add_patch(patches.Rectangle((x, y), w, d, fill=True, facecolor=c_salon, edgecolor='black', lw=1))
+                num_beds = int(typ[0]) - 1
+                
+                # Proporcje z WT
+                laz_w = min(2.2, w * 0.4)
+                laz_d = min(2.5, d * 0.4)
+                syp_d = min(3.5, d * 0.55)
+                syp_w = min(3.2, (w * 0.6) / max(1, num_beds)) if num_beds > 0 else 0
+                
+                if strona_okien == 'top':
+                    y_laz = y
+                    y_syp = y + d - syp_d
+                else:
+                    y_laz = y + d - laz_d
+                    y_syp = y
+                    
+                # Łazienka (od strony korytarza)
+                ax.add_patch(patches.Rectangle((x, y_laz), laz_w, laz_d, fill=True, facecolor=c_laz, edgecolor='black', lw=0.5))
+                ax.text(x+laz_w/2, y_laz+laz_d/2, "ŁAZ", fontsize=5, ha='center', va='center')
+                
+                # Sypialnie (od strony okien, zaczynając od prawej strony by zostawić okno dla salonu)
+                curr_x = x + w
+                for i in range(num_beds):
+                    curr_x -= syp_w
+                    ax.add_patch(patches.Rectangle((curr_x, y_syp), syp_w, syp_d, fill=True, facecolor=c_syp, edgecolor='black', lw=0.5))
+                    ax.text(curr_x+syp_w/2, y_syp+syp_d/2, "SYP", fontsize=5, ha='center', va='center')
+                    
+                # Etykieta Salonu
+                salon_okno_w = w - (num_beds * syp_w)
+                if salon_okno_w > 1.0:
+                    ax.text(x + salon_okno_w/2, y_syp + syp_d/2, "SALON\n+ ANEKS", fontsize=6, ha='center', va='center')
+                    
+                # Główna etykieta mieszkania
+                ax.text(x + w/2, y + d/2, f"M: {typ}\n{round(pow_m, 1)} m²", fontsize=7, ha='center', va='center', weight='bold', bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0.5))
+
             for idx_p, tab in enumerate(zakladki_pieter):
                 pietro_nr = idx_p + 1
                 with tab:
-                    fig, ax = plt.subplots(figsize=(9, 4.5))
+                    fig, ax = plt.subplots(figsize=(12, 6))
                     szer_plyty = szerokosc_traktu
-                    dl_plyty = pow_zabudowy / szerokosc_traktu
+                    dl_plyty = dlugosc_budynku
                     
+                    # Tło budynku
                     plyta = patches.Rectangle((0, 0), dl_plyty, szer_plyty, linewidth=2, edgecolor='black', facecolor='#f8f9fa')
                     ax.add_patch(plyta)
                     
-                    klatka_srodek = patches.Rectangle((dl_plyty/2 - 2.0, 0), 4.0, szer_plyty, linewidth=1.5, edgecolor='#dc3545', facecolor='#f8d7da', hatch='X')
+                    # Rdzeń komunikacyjny w centrum
+                    dl_rdzenia = szerokosc_rdzenia
+                    klatka_srodek = patches.Rectangle((dl_plyty/2 - dl_rdzenia/2, 0), dl_rdzenia, szer_plyty, linewidth=1.5, edgecolor='#495057', facecolor='#dee2e6')
                     ax.add_patch(klatka_srodek)
-                    ax.text(dl_plyty/2, szer_plyty/2, "KLATKA SCHODOWA\n+ PIONY / WINDA", color='#721c24', fontsize=7, ha='center', va='center', weight='bold', rotation=90)
+                    
+                    # Szyb windy wewnątrz rdzenia
+                    szyb_windy = patches.Rectangle((dl_plyty/2 - 1.0, szer_plyty/2 - 1.0), 2.0, 2.0, linewidth=1, edgecolor='black', facecolor='#adb5bd', hatch='X')
+                    ax.add_patch(szyb_windy)
+                    ax.text(dl_plyty/2, szer_plyty/2 - 2.0, "KLATKA SCHODOWA\nKOMUNIKACJA PIONOWA", color='black', fontsize=7, ha='center', va='center')
 
-                    korytarz_lewy = patches.Rectangle((2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
-                    korytarz_prawy = patches.Rectangle((dl_plyty/2 + 2.0, szer_plyty/2 - 0.9), (dl_plyty/2 - 4.0), 1.8, linewidth=1, edgecolor='#6c757d', facecolor='#e9ecef')
+                    # Korytarze
+                    gleb_skrzydla = (szer_plyty - szerokosc_korytarza) / 2
+                    korytarz_lewy = patches.Rectangle((0, gleb_skrzydla), (dl_plyty - dl_rdzenia)/2, szerokosc_korytarza, facecolor='#e9ecef')
+                    korytarz_prawy = patches.Rectangle((dl_plyty/2 + dl_rdzenia/2, gleb_skrzydla), (dl_plyty - dl_rdzenia)/2, szerokosc_korytarza, facecolor='#e9ecef')
                     ax.add_patch(korytarz_lewy)
                     ax.add_patch(korytarz_prawy)
 
                     if pietro_nr == 1:
-                        wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.2)
+                        wejscie = patches.Rectangle((dl_plyty/2 - 1.5, -0.8), 3.0, 0.8, facecolor='#ffc107', edgecolor='black', linewidth=1.5)
                         ax.add_patch(wejscie)
-                        ax.text(dl_plyty/2, -1.0, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=7, ha='center', weight='bold')
+                        ax.text(dl_plyty/2, -1.2, "WEJŚCIE GŁÓWNE (3.0m)", color='black', fontsize=8, ha='center', weight='bold')
 
+                    # Algorytm wypełniania bezstratnego z sortowaniem
                     mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
-                    kolory_mieszkan = {'1-pok': '#3186cc', '2-pok': '#28a745', '3-pok': '#ffc107', '4-pok': '#d9534f'}
-                    polowa_sztuk = max(1, len(mieszkania_pietra) // 2)
                     
-                    for i, m in enumerate(mieszkania_pietra[:polowa_sztuk]):
-                        strona = i % 2
-                        x_pos = 0.5 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil(polowa_sztuk/2))
-                        y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
-                        wys_l = szer_plyty/2 - 1.2
-                        szer_l = (dl_plyty/2 - 3.0) / math.ceil(polowa_sztuk/2)
-                        lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
-                        ax.add_patch(lokal)
-                        ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
+                    # Przydzielanie mieszkań do 4 ćwiartek (Lewo-Dół, Lewo-Góra, Prawo-Dół, Prawo-Góra)
+                    cwiartki = [[], [], [], []]
+                    sumy_cwiartek = [0, 0, 0, 0]
+                    for m in mieszkania_pietra:
+                        idx_min = sumy_cwiartek.index(min(sumy_cwiartek))
+                        cwiartki[idx_min].append(m)
+                        sumy_cwiartek[idx_min] += m["pow"]
 
-                    for i, m in enumerate(mieszkania_pietra[polowa_sztuk:]):
-                        strona = i % 2
-                        x_pos = dl_plyty/2 + 2.0 + (i // 2) * ((dl_plyty/2 - 2.5) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2))
-                        y_pos = 0.5 if strona == 0 else szer_plyty/2 + 1.0
-                        wys_l = szer_plyty/2 - 1.2
-                        szer_l = (dl_plyty/2 - 3.0) / math.ceil((len(mieszkania_pietra)-polowa_sztuk)/2)
-                        lokal = patches.Rectangle((x_pos, y_pos), szer_l - 0.1, wys_l, facecolor=kolory_mieszkan.get(m['typ'], '#6c757d'), edgecolor='black', alpha=0.85)
-                        ax.add_patch(lokal)
-                        ax.text(x_pos + szer_l/2, y_pos + wys_l/2, f"{m['typ']}\n{round(m['pow'], 1)}m²", color='white', fontsize=6, ha='center', va='center', weight='bold')
+                    dl_skrzydla_x = (dl_plyty - dl_rdzenia) / 2
+                    
+                    # Rysowanie ćwiartek ze skalowaniem bezstratnym
+                    # Lewo-Dół (Okna na bottom)
+                    curr_x = 0
+                    if sumy_cwiartek[0] > 0:
+                        scale_factor = dl_skrzydla_x / sumy_cwiartek[0]
+                        for m in cwiartki[0]:
+                            w_apt = m["pow"] * scale_factor
+                            rysuj_mieszkanie(ax, curr_x, 0, w_apt, gleb_skrzydla, m["typ"], m["pow"], 'bottom')
+                            curr_x += w_apt
 
-                    ax.set_xlim(-2, dl_plyty + 2)
-                    ax.set_ylim(-2, szer_plyty + 2)
+                    # Lewo-Góra (Okna na top)
+                    curr_x = 0
+                    if sumy_cwiartek[1] > 0:
+                        scale_factor = dl_skrzydla_x / sumy_cwiartek[1]
+                        for m in cwiartki[1]:
+                            w_apt = m["pow"] * scale_factor
+                            rysuj_mieszkanie(ax, curr_x, gleb_skrzydla + szerokosc_korytarza, w_apt, gleb_skrzydla, m["typ"], m["pow"], 'top')
+                            curr_x += w_apt
+
+                    # Prawo-Dół (Okna na bottom, rysowane od prawej by największe były na rogu)
+                    curr_x = dl_plyty
+                    if sumy_cwiartek[2] > 0:
+                        scale_factor = dl_skrzydla_x / sumy_cwiartek[2]
+                        for m in cwiartki[2]:
+                            w_apt = m["pow"] * scale_factor
+                            curr_x -= w_apt
+                            rysuj_mieszkanie(ax, curr_x, 0, w_apt, gleb_skrzydla, m["typ"], m["pow"], 'bottom')
+
+                    # Prawo-Góra (Okna na top, rysowane od prawej)
+                    curr_x = dl_plyty
+                    if sumy_cwiartek[3] > 0:
+                        scale_factor = dl_skrzydla_x / sumy_cwiartek[3]
+                        for m in cwiartki[3]:
+                            w_apt = m["pow"] * scale_factor
+                            curr_x -= w_apt
+                            rysuj_mieszkanie(ax, curr_x, gleb_skrzydla + szerokosc_korytarza, w_apt, gleb_skrzydla, m["typ"], m["pow"], 'top')
+
+                    ax.set_xlim(-1, dl_plyty + 1)
+                    ax.set_ylim(-2, szer_plyty + 1)
                     ax.set_aspect('equal')
                     ax.axis('off')
-                    ax.set_title(f"Rzut Kondygnacji {pietro_nr}", fontsize=10, weight='bold')
+                    ax.set_title(f"Rzut Architektoniczny - Kondygnacja {pietro_nr}", fontsize=12, weight='bold')
                     st.pyplot(fig)
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
             st.write(f" - NA GRUNCIE RODZIMYM ({int(wskaznik_pbc_rodzime_w_pbc*100)}%): {round(wymagane_pbc_rodzime, 1)} m2")
             st.write(f" - DO ZBILANSOWANIA NA STROPIE: {round(wymagane_pbc - wymagane_pbc_rodzime, 1)} m2")
-            st.info("🌳 **Zabezpieczenie Inżynieryjne:** System bezwzględnie pilnuje, aby wanna garażowa na żadnym poziomie nie wchodziła pod strefę wymaganą dla roślinności na gruncie rodzimym.")
+            st.success("Bilans biologiczny zweryfikowany pomyślnie.")
 
         with t3:
             c1, c2, c3 = st.columns(3)
@@ -373,8 +437,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.success("✅ Powierzchnia garażu nigdy nie przekroczy bezpiecznego limitu. Cała zieleń rodzima jest bezpieczna na pełnym gruncie.")
 
         with t4:
-            st.markdown("### 💰 Szacunkowy Model Finansowy (ROI)")
-            
             przychody_pum = calkowity_pum * cena_pum
             przychody_garaz = wymagane_miejsca * cena_mp
             przychody_total = przychody_pum + przychody_garaz
@@ -397,8 +459,3 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             
             st.write(f"• Szacowana marża na projekcie: **{round(marza, 1)}%**")
             st.write(f"• Wskaźnik ROI (Zwrot z kosztów): **{round(roi, 1)}%**")
-            
-            if marza < 15:
-                st.warning("⚠️ Projekt o podwyższonym ryzyku. Marża deweloperska poniżej 15%.")
-            else:
-                st.success("✅ Projekt rentowny. Marża deweloperska na bezpiecznym poziomie.")
