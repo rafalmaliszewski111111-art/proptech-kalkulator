@@ -4,16 +4,17 @@ import math
 from shapely import wkt
 from shapely.geometry import mapping, box, Polygon
 from shapely.ops import unary_union
+from shapely.affinity import scale
 import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V21", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V22", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Analiza Chłonności i Układ Kondygnacji")
-st.markdown("Narzędzie projektowe z dedykowanymi zakładkami dla każdego piętra, stabilnym garażem -1/-2 i precyzyjnym obrysem.")
+st.title("🏗️ PRO-DEVELOPER AI: Rotacja Bryły, Parkingi i Zakładki Pięter")
+st.markdown("Narzędzie z automatycznym obrotem budynku w osi działki, precyzyjnym audytem miejsc (goście + niepełnosprawni) oraz rzutami.")
 st.divider()
 
 # ==========================================================
@@ -130,8 +131,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.error("BŁĄD: Działka jest zbyt wąska. Brak miejsca na budynek po odsunięciu o 4m.")
             st.stop()
 
-        liczba_kond = max(1, math.floor(max_wysok_mpzp if 'max_wysok_mpzp' in locals() else max_wysokosc_mpzp / wys_kond_nadziemna))
-        # Zabezpieczenie zmiennej wysokości MPZP
         max_h = max_wysokosc_mpzp
         liczba_kond = max(1, math.floor(max_h / wys_kond_nadziemna))
 
@@ -183,7 +182,12 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
             wygenerowane_mieszkania.extend(mieszkania_na_pietrze)
 
-        wymagane_miejsca = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
+        # Parkingi z uwzględnieniem 1% dla gości oraz 1% dla osób niepełnosprawnych
+        baza_miejsc = sum([math.ceil(m["pow"] / 60.0) for m in wygenerowane_mieszkania])
+        miejsca_goscie = math.ceil(baza_miejsc * 0.01)
+        miejsca_niepelnosprawni = math.ceil(baza_miejsc * 0.01)
+        wymagane_miejsca = baza_miejsc + miejsca_goscie + miejsca_niepelnosprawni
+
         nachylenie_dec = kat_nachylenia_ramp / 100.0
         dlugosc_rampy_1 = wys_kond_podziemna / nachylenie_dec if nachylenie_dec > 0 else 20.0
         pow_rampy_1 = dlugosc_rampy_1 * szerokosc_pochylni
@@ -198,7 +202,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             pow_garazu_poziom_2 = 0.0
 
         st.divider()
-        st.subheader("2. Interaktywna Mapa Inwestycji (Precyzyjny Obrys)")
+        st.subheader("2. Interaktywna Mapa Inwestycji (Obrócony Obrys w Osi Działki)")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -210,24 +214,22 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         ).add_to(mapa)
 
         try:
-            b_box_gps = teren_gps.bounds
-            szer_geo_box = (b_box_gps[2] - b_box_gps[0]) * 0.20
-            wys_geo_box = (b_box_gps[3] - b_box_gps[1]) * 0.20
-            c_gps_x = (b_box_gps[0] + b_box_gps[2]) / 2
-            c_gps_y = (b_box_gps[1] + b_box_gps[3]) / 2
-            
-            budynek_gps_box = box(
-                c_gps_x - szer_geo_box/2, c_gps_y - wys_geo_box/2,
-                c_gps_x + szer_geo_box/2, c_gps_y + wys_geo_box/2
-            ).intersection(teren_gps)
-
-            if budynek_gps_box.is_empty:
-                budynek_gps_box = koperta_metry
+            # Używamy minimalnego obróconego prostokąta działki GPS, aby bryła idealnie naśladowała kąt i obrót działki
+            mrr_gps = teren_gps.buffer(-0.00004).minimum_rotated_rectangle
+            if not mrr_gps.is_empty:
+                # Skalujemy obrócony prostokąt, aby dopasować go do powierzchni zabudowy
+                scale_factor = math.sqrt(min(pow_zabudowy / pow_dzialki, 0.25) / max(0.001, mrr_gps.area))
+                budynek_gps_rotated = scale(mrr_gps, xfact=scale_factor, yofact=scale_factor, origin='centroid').intersection(teren_gps)
+                
+                if budynek_gps_rotated.is_empty:
+                    budynek_gps_rotated = teren_gps.buffer(-0.00005)
+            else:
+                budynek_gps_rotated = teren_gps.buffer(-0.00005)
 
             folium.GeoJson(
-                mapping(budynek_gps_box),
+                mapping(budynek_gps_rotated),
                 style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8},
-                tooltip=f"Budynek w bezpiecznym obrysie (PZ: {round(pow_zabudowy, 1)} m2)"
+                tooltip=f"Budynek obrócony w osi działki (PZ: {round(pow_zabudowy, 1)} m2)"
             ).add_to(mapa)
         except Exception:
             pass
@@ -265,7 +267,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.markdown("### 📐 Planimetryczne Rzuty Poszczególnych Kondygnacji")
             st.info("Poniżej znajdziesz oddzielną zakładkę dla każdego piętra budynku z pełnym rozkładem mieszkań, korytarzem oraz wejściem na parterze.")
 
-            # Tworzymy dynamiczne zakładki dla każdego piętra osobno
             nazwy_zakladek = [f"Piętro {p}" for p in range(1, liczba_kond + 1)]
             zakladki_pieter = st.tabs(nazwy_zakladek)
 
@@ -330,7 +331,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     
                     st.pyplot(fig)
 
-                    # Podsumowanie liczbowe dla konkretnego piętra
                     st.markdown(f"**Statystyka Piętra {pietro_nr}:**")
                     podsumowanie_pietro = {}
                     for m in mieszkania_pietra:
@@ -350,9 +350,12 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.success("Bilans biologiczny zweryfikowany pomyślnie.")
 
         with t3:
-            c1, c2 = st.columns(2)
-            c1.metric("Wymagane miejsca parkingowe", f"{wymagane_miejsca} szt.")
-            c2.metric("Kondygnacje podziemne", f"{liczba_poziomow_garazu}")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Miejsca bazowe mieszkań", f"{baza_miejsc} szt.")
+            c2.metric("Miejsca dla gości (1%)", f"{miejsca_goscie} szt.")
+            c3.metric("Miejsca dla niepełnosprawnych (1%)", f"{miejsca_niepelnosprawni} szt.")
+            
+            st.metric("ŁĄCZNIE WYMAGANE MIEJSCA PARKINGOWE", f"{wymagane_miejsca} szt.")
             
             st.markdown(f"**Stabilny bilans hali garażowej (-1 / -2):**")
             st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2**")
