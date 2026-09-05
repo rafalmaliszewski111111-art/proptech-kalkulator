@@ -271,7 +271,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             st.info("Poniższy schemat przedstawia rzut typowej kondygnacji z podziałem na trakty, korytarz osiowy, klatki ewakuacyjne oraz kolorowe moduły poszczególnych mieszkań.")
 
             # Wybór piętra do podglądu
-            wybrane_pietro = st.slider("Wybierz numer kondygnacji do wizualizatory CAD:", min_value=1, max_value=int(liczba_kond), value=1)
+            wybrane_pietro = st.slider("Wybierz numer kondygnacji do wizualizatora CAD:", min_value=1, max_value=int(liczba_kond), value=1)
 
             # Generowanie rysunku CAD rzutu piętra za pomocą matplotlib
             fig, ax = plt.subplots(figsize=(10, 5))
@@ -313,7 +313,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 
                 if pozycja_x + 3.5 < dl_plyty - 2.5:
                     y_pos = 0.5 if strona == 0 else szer_plyty / 2 + 1.0
-                     wys_lokalu = szer_plyty / 2 - 1.5
+                    wys_lokalu = szer_plyty / 2 - 1.5
                     
                     lokal_box = patches.Rectangle(
                         (pozycja_x, y_pos), 3.5, wys_lokalu,
