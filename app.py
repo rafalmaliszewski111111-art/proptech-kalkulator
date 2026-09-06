@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V31", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V33", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Space Planning i Detale Architektoniczne")
-st.markdown("Generatywny rzut z drzwiami (90cm/80cm), szafami (60x100), zaawansowaną łazienką i zmaksymalizowanym PUM-em.")
+st.title("🏗️ PRO-DEVELOPER AI: Space Planning i Aranżacja Wnętrz")
+st.markdown("Generatywny rzut z pełnym wyposażeniem: stół jadalniany, szafka RTV, telewizor i sofa w ergonomicznej odległości.")
 st.divider()
 
 # ==========================================================
@@ -182,7 +182,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         budynek_gps_final = metry_to_gps(budynek_metry_final, teren_metry.bounds, teren_gps.bounds)
 
         # ==========================================================
-        # SILNIK OBLICZENIOWY: ZEROWE STRATY I MINIMALNA KOMUNIKACJA
+        # SILNIK OBLICZENIOWY: ZAMKNIĘTY KORYTARZ I MINIMALIZACJA
         # ==========================================================
         struktura = {
             "1-pok": {"udzial_%": udzial_1p, "min_m2": min_1p, "max_m2": max_1p}, 
@@ -195,13 +195,15 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
         max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
         
-        # ZMniejszony korytarz osiowy do prawnego minimum (1.5m) dla oszczędności komunikacji
         szerokosc_korytarza = 1.5
-        szerokosc_rdzenia = 4.0
-        glebokosc_skrzydla = (szerokosc_traktu - szerokosc_korytarza) / 2
+        rdzen_w = 4.5
+        szer_skrajna = max(6.0, min(10.0, dlugosc_budynku * 0.2)) 
         
-        pow_korytarza_pietro = max(10.0, (dlugosc_budynku - szerokosc_rdzenia) * szerokosc_korytarza)
-        pow_klatki_pietro = szerokosc_rdzenia * glebokosc_skrzydla
+        if dlugosc_budynku < 2 * szer_skrajna + rdzen_w + 2.0:
+            szer_skrajna = dlugosc_budynku / 2 - rdzen_w/2
+            
+        pow_korytarza_pietro = max(5.0, (dlugosc_budynku - 2*szer_skrajna) * szerokosc_korytarza)
+        pow_klatki_pietro = rdzen_w * (szerokosc_traktu/2)
         pum_na_pietro = max(20.0, pow_zabudowy - pow_korytarza_pietro - pow_klatki_pietro)
         calkowity_pum = pum_na_pietro * liczba_kond
 
@@ -236,243 +238,211 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         pow_rampy_1 = dlugosc_rampy * szerokosc_pochylni
         wymagany_garaz_calkowity = max(wymagane_miejsca * pow_na_miejsce_garaz, pow_zabudowy + pow_rampy_1)
         
-        if liczba_poziomow_garazu >= 2:
-            pow_garazu_poziom_1 = min(round(wymagany_garaz_calkowity * 0.45, 1), max_garaz_poziom)
-            pow_garazu_poziom_2 = round(wymagany_garaz_calkowity - pow_garazu_poziom_1, 1)
-        else:
-            pow_garazu_poziom_1 = min(round(wymagany_garaz_calkowity, 1), max_garaz_poziom)
-            pow_garazu_poziom_2 = 0.0
+        pow_garazu_poziom_1 = min(round(wymagany_garaz_calkowity * (0.45 if liczba_poziomow_garazu >= 2 else 1.0), 1), max_garaz_poziom)
+        pow_garazu_poziom_2 = round(wymagany_garaz_calkowity - pow_garazu_poziom_1, 1) if liczba_poziomow_garazu >= 2 else 0.0
 
         st.divider()
         st.subheader("2. Interaktywna Mapa z Miarką Odległości")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
-        
-        Draw(export=True, position='topleft', draw_options={'polyline':True, 'polygon':True, 'rectangle':True, 'circle':False, 'marker':False, 'circlemarker':False}).add_to(mapa)
         MeasureControl(position='topright', primary_length_unit='meters', primary_area_unit='sqmeters').add_to(mapa)
 
         folium.GeoJson(mapping(teren_gps), style_function=lambda x: {'fillColor': '#3186cc', 'color': '#205c90', 'weight': 2, 'fillOpacity': 0.3}, tooltip="Granice działki inwestycyjnej").add_to(mapa)
         folium.GeoJson(mapping(budynek_gps_final), style_function=lambda x: {'fillColor': '#28a745', 'color': '#1e7e34', 'weight': 2, 'fillOpacity': 0.8}, tooltip=f"Budynek (Szer: {round(szerokosc_traktu, 1)}m x Dł: {round(dlugosc_budynku, 1)}m | PZ: {round(pow_zabudowy, 1)} m²)").add_to(mapa)
-
         st_folium(mapa, width=800, height=450, returned_objects=[])
 
         # --- RAPORT I ZAKŁADKI KONDYGNACJI ---
         st.divider()
         st.subheader("3. Szczegółowy Raport i Generator Architektury Wnętrz")
-        t1, t2, t3, t4 = st.tabs(["🏗️ Architektura Wnętrz (Meble & Drzwi)", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
+        t1, t2, t3, t4 = st.tabs(["🏗️ Rzuty: Space Plan & Meble", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
         
         with t1:
             c1, c2, c3_col = st.columns(3)
             c1.metric("Całkowity PUM", f"{round(calkowity_pum, 1)} m2")
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
-            c3_col.metric("Kondygnacje", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
+            c3_col.metric("Kondygnacje", f"{liczba_kond} kond.")
             
-            st.info("💡 **Legenda wyposażenia:** Dodano drzwi wejściowe (90cm brązowe), drzwi wewnętrzne (80cm szare), szafy (100x60cm), pełen ciąg w łazience (prysznic, WC, zlew, pralka) oraz ustandaryzowane łóżka i kuchnie.")
+            st.info("💡 **Oznaczenia Wyposażenia:** Wyrysowano stół jadalniany, telewizor (RTV), sofę wypoczynkową (2.0-2.5m od TV) oraz łóżka sypialniane.")
 
-            # ---- FUNKCJA ARANŻACJI WNĘTRZ Z DRZWIAMI I MEBLAMI ----
-            def rysuj_mieszkanie(ax, x, y, w, d, typ, pow_m, korytarz_side):
+            # ---- FUNKCJA ARANŻACJI WNĘTRZ Z KOMPLETNYMI MEBLAMI ----
+            def rysuj_mieszkanie(ax, x_base, y_base, w, d, typ, pow_m, korytarz_side):
                 c_laz = '#e1f5fe'
                 c_syp = '#f1f8e9'
                 c_salon = '#fff3e0'
-                c_drzwi_we = '#8d6e63' # Brązowe wejście 90cm
-                c_drzwi_wew = '#9e9e9e' # Szare wewnętrzne 80cm
-                
-                # Baza: Salon z Aneksem
-                ax.add_patch(patches.Rectangle((x, y), w, d, fill=True, facecolor=c_salon, edgecolor='black', lw=1.5))
+                c_drzwi_we = '#8d6e63'
+                c_drzwi_wew = '#9e9e9e'
+
+                if korytarz_side in ['left', 'right']: U_max, V_max = d, w
+                else: U_max, V_max = w, d
+
+                def add_rect(u, v, du, dv, color, ec='black', hatch=None, text="", fontsize=4, text_rot=0, zorder=2):
+                    if korytarz_side == 'bottom': rx, ry, rw, rd = x_base + u, y_base + v, du, dv
+                    elif korytarz_side == 'top': rx, ry, rw, rd = x_base + u, y_base + d - v - dv, du, dv
+                    elif korytarz_side == 'left': rx, ry, rw, rd = x_base + v, y_base + u, dv, du
+                    elif korytarz_side == 'right': rx, ry, rw, rd = x_base + w - v - dv, y_base + u, dv, du
+                    
+                    rect = patches.Rectangle((rx, ry), rw, rd, facecolor=color, edgecolor=ec, hatch=hatch, lw=0.8, zorder=zorder)
+                    ax.add_patch(rect)
+                    if text: ax.text(rx + rw/2, ry + rd/2, text, fontsize=fontsize, ha='center', va='center', rotation=text_rot, zorder=zorder+1)
+
                 num_beds = int(typ[0]) - 1
+                add_rect(0, 0, U_max, V_max, c_salon) # Podkład
                 
-                # Wymiary pomieszczeń
-                laz_w = min(2.4, w * 0.45)
-                laz_d = min(2.0, d * 0.45)
-                syp_d = min(3.5, d * 0.55)
-                syp_w = min(4.0, (w * 0.6) / num_beds) if num_beds > 0 else 0
-                
-                if korytarz_side == 'top':
-                    laz_y, syp_y = y + d - laz_d, y
-                    lbl_y = y + d - laz_d/2
-                    kuch_y = y + d - 0.6
-                    bed_wall_y = y + syp_d
-                    drzwi_we_y = y + d - 0.15
-                    drzwi_laz_y = y + d - laz_d
-                else:
-                    laz_y, syp_y = y, y + d - syp_d
-                    lbl_y = y + laz_d/2
-                    kuch_y = y
-                    bed_wall_y = y + d - syp_d
-                    drzwi_we_y = y
-                    drzwi_laz_y = y + laz_d - 0.05
-
-                # --- 1. DRZWI WEJŚCIOWE DO MIESZKANIA (90 cm) ---
-                ax.add_patch(patches.Rectangle((x + 0.2, drzwi_we_y), 0.9, 0.15, facecolor=c_drzwi_we, edgecolor='black', lw=1))
-
-                # --- 2. ŁAZIENKA (Prysznic, WC, Zlew, Pralka) ---
-                ax.add_patch(patches.Rectangle((x, laz_y), laz_w, laz_d, fill=True, facecolor=c_laz, edgecolor='black', lw=1))
-                
+                # Zoptymalizowana Łazienka 2x2m (gwarancja 1.7m dla wanny)
+                laz_u, laz_v = 2.0, 2.0
+                add_rect(0, 0, laz_u, laz_v, c_laz)
                 # Wyposażenie łazienki
-                # Prysznic (90x90) w rogu
-                prysz_y = laz_y + (0.1 if korytarz_side == 'bottom' else laz_d - 1.0)
-                ax.add_patch(patches.Rectangle((x + 0.1, prysz_y), 0.9, 0.9, facecolor='white', edgecolor='gray', hatch='xx', lw=0.5))
-                ax.text(x + 0.55, prysz_y + 0.45, "PRYSZ", fontsize=4, ha='center', va='center')
-                # WC (40x50)
-                wc_y = laz_y + (laz_d - 0.6 if korytarz_side == 'bottom' else 0.1)
-                ax.add_patch(patches.Rectangle((x + laz_w - 0.5, wc_y), 0.4, 0.5, facecolor='white', edgecolor='gray', lw=0.5))
-                ax.text(x + laz_w - 0.3, wc_y + 0.25, "WC", fontsize=4, ha='center', va='center')
-                # Zlew (60x40) i Pralka (60x60)
-                zl_y = laz_y + (0.1 if korytarz_side == 'bottom' else laz_d - 0.5)
-                ax.add_patch(patches.Rectangle((x + laz_w - 1.2, zl_y), 0.6, 0.4, facecolor='white', edgecolor='gray', lw=0.5))
-                ax.text(x + laz_w - 0.9, zl_y + 0.2, "ZLEW", fontsize=4, ha='center', va='center')
+                add_rect(0.1, laz_v - 1.0, 0.9, 0.9, 'white', hatch='xx', text="WANNA\n90x90", fontsize=3.5)
+                add_rect(laz_u - 0.5, 0.1, 0.4, 0.5, 'white', text="WC", fontsize=3.5)
+                add_rect(laz_u - 0.7, laz_v - 0.5, 0.6, 0.4, 'white', text="ZLEW", fontsize=3.5)
+                add_rect(0.1, 0.1, 0.6, 0.6, '#eeeeee', text="PRALKA", fontsize=3.5)
                 
-                # Drzwi do łazienki (80cm) na ściance działowej
-                ax.add_patch(patches.Rectangle((x + laz_w/2 - 0.4, drzwi_laz_y), 0.8, 0.05, facecolor=c_drzwi_wew, edgecolor='black', lw=0.5))
+                # Drzwi do łazienki (80cm)
+                add_rect(laz_u, 0.6, 0.05, 0.8, c_drzwi_wew)
 
-                # --- 3. ANEKS KUCHENNY (Moduły 60x60) ---
-                kuch_x = x + laz_w
-                actual_kuch_w = min(2.4, w - laz_w - 0.1)
-                if actual_kuch_w >= 0.6:
-                    num_modules = int(actual_kuch_w // 0.6)
-                    labels = ["LOD", "ZLW", "PŁY", "BLT"] 
-                    for j in range(num_modules):
-                        mod_x = kuch_x + j * 0.6
-                        ax.add_patch(patches.Rectangle((mod_x, kuch_y), 0.6, 0.6, fill=True, facecolor='#eeeeee', edgecolor='gray', lw=0.5))
-                        ax.text(mod_x + 0.3, kuch_y + 0.3, labels[j % 4], fontsize=4, ha='center', va='center')
-
-                # --- 4. SYPIALNIE (Łóżka, Szafy, Drzwi 80cm) ---
-                curr_syp_x = x + w
-                for i in range(num_beds):
-                    curr_syp_x -= syp_w
-                    ax.add_patch(patches.Rectangle((curr_syp_x, syp_y), syp_w, syp_d, fill=True, facecolor=c_syp, edgecolor='black', lw=1))
-                    
-                    # Łóżko: Główna sypialnia 160x200, pozostałe 90x200
-                    bed_w = 1.6 if i == 0 else 0.9
-                    bed_x = curr_syp_x + (syp_w - bed_w) / 2
-                    bed_start_y = bed_wall_y - 2.0 if korytarz_side == 'top' else bed_wall_y
-                    
-                    ax.add_patch(patches.Rectangle((bed_x, bed_start_y), bed_w, 2.0, facecolor='white', edgecolor='gray', lw=0.5))
-                    
-                    # Poduszki
-                    pillow_y = bed_wall_y - 0.4 if korytarz_side == 'top' else bed_wall_y + 0.1
-                    if i == 0:
-                        ax.add_patch(patches.Rectangle((bed_x + 0.1, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
-                        ax.add_patch(patches.Rectangle((bed_x + 0.9, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
-                    else:
-                        ax.add_patch(patches.Rectangle((bed_x + 0.15, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
-
-                    # SZAFA w sypialni (100x60 cm) - Oparta o ścianę korytarzową pokoju
-                    szafa_w, szafa_d = 1.0, 0.6
-                    szafa_y = bed_wall_y - szafa_d if korytarz_side == 'top' else bed_wall_y
-                    ax.add_patch(patches.Rectangle((curr_syp_x + 0.1, szafa_y), szafa_w, szafa_d, facecolor='#d7ccc8', edgecolor='gray', lw=0.5))
-                    ax.text(curr_syp_x + 0.1 + szafa_w/2, szafa_y + szafa_d/2, "SZAFA", fontsize=4, ha='center', va='center')
-
-                    # Drzwi wewnętrzne do sypialni (80cm)
-                    drzwi_syp_y = bed_wall_y - 0.05 if korytarz_side == 'bottom' else bed_wall_y
-                    ax.add_patch(patches.Rectangle((curr_syp_x + syp_w - 0.9, drzwi_syp_y), 0.8, 0.05, facecolor=c_drzwi_wew, edgecolor='black', lw=0.5))
-
-                    ax.text(curr_syp_x + syp_w/2, syp_y + syp_d/2, f"SYP {round(syp_w*syp_d, 1)}m²", fontsize=5, ha='center', va='center', bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', pad=0.2))
-
-                # --- 5. SALON I SOFA ---
-                sofa_w, sofa_d = 2.0, 0.9
-                sofa_x = x + w/2 - sofa_w/2 if num_beds == 0 else curr_syp_x - sofa_w - 0.2
-                sofa_y = y + 0.2 if korytarz_side == 'top' else y + d - sofa_d - 0.2
-                
-                if sofa_x > x + laz_w + 0.1:
-                    ax.add_patch(patches.Rectangle((sofa_x, sofa_y), sofa_w, sofa_d, facecolor='#eceff1', edgecolor='gray', lw=0.5, style='round,pad=0.1'))
-                    ax.text(sofa_x + sofa_w/2, sofa_y + sofa_d/2, "SOFA", fontsize=4, ha='center', va='center')
-
-                # W przypadku kawalerki dodajemy szafę do przedpokoju/salonu
                 if num_beds == 0:
-                    szafa_y = y + d - 0.7 if korytarz_side == 'top' else y + 0.1
-                    ax.add_patch(patches.Rectangle((x + w - 1.1, szafa_y), 1.0, 0.6, facecolor='#d7ccc8', edgecolor='gray', lw=0.5))
-                    ax.text(x + w - 0.6, szafa_y + 0.3, "SZAFA", fontsize=4, ha='center', va='center')
+                    # ---- KAWALERKA ----
+                    kuch_u = min(2.4, U_max - laz_u - 0.2)
+                    add_rect(laz_u + 0.1, laz_v, kuch_u, 0.6, '#eeeeee', text="ANEKS KUCHENNY")
+                    
+                    # Drzwi wejściowe (90cm)
+                    add_rect(laz_u + 0.2, 0, 0.9, 0.15, c_drzwi_we)
+                    # Szafa (100x60)
+                    add_rect(laz_u + 1.2, 0, 1.0, 0.6, '#d7ccc8', text="SZAFA")
+                    
+                    # Łóżko na open-space
+                    add_rect(0.2, V_max - 2.2, 1.6, 2.0, 'white', text="ŁÓŻKO\n160x200")
+                    add_rect(0.3, V_max - 2.1, 0.6, 0.3, '#f0f0f0') 
+                    add_rect(1.1, V_max - 2.1, 0.6, 0.3, '#f0f0f0') 
+                    
+                    if U_max - laz_u > 1.5 and V_max - laz_v > 1.5:
+                        # Stół Jadalniany
+                        add_rect(laz_u + 0.4, laz_v + 0.8, 0.8, 0.8, '#ffe082', text="STÓŁ", fontsize=4)
+                        
+                    if U_max - laz_u > 2.5:
+                        # Sofa (200x90)
+                        add_rect(laz_u + 0.2, V_max - 1.2, 2.0, 0.9, '#eceff1', text="SOFA")
+                        # Telewizor i szafka (na przeciwległej ścianie)
+                        add_rect(U_max - 0.4, V_max - 1.5, 0.3, 1.2, '#cfd8dc', text="TV", text_rot=90)
+                        
+                else:
+                    # ---- WIELOPOKOJOWE ----
+                    night_u = max(2.6, min(U_max * (0.45 if num_beds == 1 else 0.6), U_max - 2.6))
+                    
+                    # Drzwi wejściowe (90cm)
+                    add_rect(night_u + 0.2, 0, 0.9, 0.15, c_drzwi_we)
+                    
+                    # Kuchnia
+                    kuch_u = min(2.4, U_max - night_u - 0.1)
+                    add_rect(night_u + 0.1, laz_v, kuch_u, 0.6, '#eeeeee', text="ANEKS KUCHENNY")
+                    
+                    # Stół Jadalniany przy kuchni
+                    if U_max - night_u > 1.5:
+                        add_rect(night_u + 0.5, laz_v + 0.8, 1.2, 0.8, '#ffe082', text="STÓŁ", fontsize=4)
 
-                salon_area = pow_m - (laz_w*laz_d) - (num_beds * syp_w * syp_d)
-                salon_lbl_x = x + laz_w + (w - laz_w)/2
-                ax.text(salon_lbl_x, lbl_y, f"SALON+KUCH\n{round(salon_area, 1)}m²", fontsize=6, ha='center', va='center', weight='bold', bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.5))
+                    # Sofa i TV z zachowaniem ~2m dystansu
+                    day_w = U_max - night_u
+                    if day_w > 2.5:
+                        # Szafka RTV + TV (na ściance sypialni)
+                        add_rect(night_u + 0.1, V_max - 2.0, 0.4, 1.5, '#cfd8dc', text="RTV+TV", text_rot=90, fontsize=4)
+                        # Sofa (odsunięta)
+                        sofa_u = min(night_u + 2.5, U_max - 1.0)
+                        add_rect(sofa_u, V_max - 2.2, 0.9, 2.0, '#eceff1', text="SOFA", text_rot=90, fontsize=4)
+
+                    # Sypialnie
+                    bed_u_step = night_u / num_beds
+                    for i in range(num_beds):
+                        bu = i * bed_u_step
+                        bw = bed_u_step
+                        bd = V_max - laz_v
+                        add_rect(bu, laz_v, bw, bd, c_syp)
+                        add_rect(night_u - 0.05, laz_v + i*bed_u_step + 0.2, 0.05, 0.8, c_drzwi_wew) # Drzwi 80cm
+                        
+                        bed_w, bed_d = (1.6 if i==0 else 0.9), 2.0
+                        bed_x_offset = bu + (bw - bed_w) / 2
+                        add_rect(bed_x_offset, V_max - bed_d, bed_w, bed_d, 'white', text=f"ŁÓŻKO\n{int(bed_w*100)}x200")
+                        add_rect(bed_x_offset + 0.1, V_max - bed_d + 0.1, 0.6, 0.3, '#f0f0f0') # Poduszka
+                        if i == 0: add_rect(bed_x_offset + 0.9, V_max - bed_d + 0.1, 0.6, 0.3, '#f0f0f0')
+                        
+                        add_rect(bu + 0.1, laz_v + 0.1, 1.0, 0.6, '#d7ccc8', text="SZAFA\n100x60")
+
+                rot = 90 if korytarz_side in ['left', 'right'] else 0
+                ax.text(x_base + w/2, y_base + d/2, f"{typ}\n{round(pow_m, 1)} m²", fontsize=7, ha='center', va='center', weight='bold', rotation=rot, bbox=dict(facecolor='white', alpha=0.9, edgecolor='black', pad=1), zorder=10)
 
             zakladki_pieter = st.tabs([f"Piętro {p}" for p in range(1, liczba_kond + 1)])
 
             for idx_p, tab in enumerate(zakladki_pieter):
                 pietro_nr = idx_p + 1
                 with tab:
-                    fig, ax = plt.subplots(figsize=(12, 6))
+                    fig, ax = plt.subplots(figsize=(14, 7))
+                    szer_plyty = szerokosc_traktu
+                    glebokosc_skrzydla = (szerokosc_traktu - 1.5) / 2
                     
                     ax.add_patch(patches.Rectangle((0, 0), dlugosc_budynku, szerokosc_traktu, linewidth=2, edgecolor='black', facecolor='#f8f9fa'))
                     
-                    klatka = patches.Rectangle((dlugosc_budynku/2 - szerokosc_rdzenia/2, szerokosc_traktu/2 + szerokosc_korytarza/2), szerokosc_rdzenia, glebokosc_skrzydla, linewidth=1.5, edgecolor='#495057', facecolor='#e9ecef', hatch='\\')
+                    klatka = patches.Rectangle((dlugosc_budynku/2 - rdzen_w/2, 0), rdzen_w, glebokosc_skrzydla, linewidth=1.5, edgecolor='#495057', facecolor='#cfd8dc', hatch='\\')
                     ax.add_patch(klatka)
-                    ax.text(dlugosc_budynku/2, szerokosc_traktu - glebokosc_skrzydla/2, "TRZON\nKOMUNIKACYJNY", fontsize=7, ha='center', va='center', weight='bold')
+                    ax.text(dlugosc_budynku/2, glebokosc_skrzydla/2, "RDZEŃ\n(KLATKA+WINDA)", fontsize=7, ha='center', va='center', weight='bold')
 
-                    korytarz = patches.Rectangle((0, glebokosc_skrzydla), dlugosc_budynku, szerokosc_korytarza, facecolor='#cfd8dc')
+                    korytarz = patches.Rectangle((szer_skrajna, glebokosc_skrzydla), dlugosc_budynku - 2*szer_skrajna, 1.5, facecolor='#e0e0e0')
                     ax.add_patch(korytarz)
-                    ax.text(dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY (Wymóg 1.5m WT)", fontsize=6, ha='center', va='center')
-                    ax.text(3*dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY (Wymóg 1.5m WT)", fontsize=6, ha='center', va='center')
 
                     if pietro_nr == 1:
-                        wejscie = patches.Rectangle((dlugosc_budynku/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.5)
+                        wejscie = patches.Rectangle((dlugosc_budynku/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffb300', edgecolor='black', linewidth=1.5)
                         ax.add_patch(wejscie)
-                        ax.text(dlugosc_budynku/2, -1.0, "WEJŚCIE (LOBBY 3.0m)", color='black', fontsize=7, ha='center', weight='bold')
+                        ax.text(dlugosc_budynku/2, -1.0, "WEJŚCIE DO BUDYNKU", color='black', fontsize=7, ha='center', weight='bold')
 
                     mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
-                    
-                    tracts = []
-                    if pietro_nr == 1:
-                        tracts = [
-                            {'id': 'TL', 'x': 0, 'y': szerokosc_traktu/2 + szerokosc_korytarza/2, 'w': dlugosc_budynku/2 - szerokosc_rdzenia/2, 'd': glebokosc_skrzydla, 'k_side': 'bottom', 'apts': []},
-                            {'id': 'TR', 'x': dlugosc_budynku/2 + szerokosc_rdzenia/2, 'y': szerokosc_traktu/2 + szerokosc_korytarza/2, 'w': dlugosc_budynku/2 - szerokosc_rdzenia/2, 'd': glebokosc_skrzydla, 'k_side': 'bottom', 'apts': []},
-                            {'id': 'BL', 'x': 0, 'y': 0, 'w': dlugosc_budynku/2 - 1.5, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []},
-                            {'id': 'BR', 'x': dlugosc_budynku/2 + 1.5, 'y': 0, 'w': dlugosc_budynku/2 - 1.5, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []}
-                        ]
-                    else:
-                        tracts = [
-                            {'id': 'TL', 'x': 0, 'y': szerokosc_traktu/2 + szerokosc_korytarza/2, 'w': dlugosc_budynku/2 - szerokosc_rdzenia/2, 'd': glebokosc_skrzydla, 'k_side': 'bottom', 'apts': []},
-                            {'id': 'TR', 'x': dlugosc_budynku/2 + szerokosc_rdzenia/2, 'y': szerokosc_traktu/2 + szerokosc_korytarza/2, 'w': dlugosc_budynku/2 - szerokosc_rdzenia/2, 'd': glebokosc_skrzydla, 'k_side': 'bottom', 'apts': []},
-                            {'id': 'B', 'x': 0, 'y': 0, 'w': dlugosc_budynku, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []}
-                        ]
+                    mieszkania_pietra.sort(key=lambda x: x["pow"], reverse=True)
 
-                    for apt in mieszkania_pietra:
-                        tracts.sort(key=lambda t: sum([a['pow'] for a in t['apts']]) / t['w'])
-                        tracts[0]['apts'].append(apt)
+                    tracts = [
+                        {'id': 'L_END', 'x': 0, 'y': 0, 'w': szer_skrajna, 'd': szerokosc_traktu, 'k_side': 'right', 'apts': []},
+                        {'id': 'R_END', 'x': dlugosc_budynku - szer_skrajna, 'y': 0, 'w': szer_skrajna, 'd': szerokosc_traktu, 'k_side': 'left', 'apts': []},
+                        {'id': 'T', 'x': szer_skrajna, 'y': glebokosc_skrzydla + 1.5, 'w': dlugosc_budynku - 2*szer_skrajna, 'd': glebokosc_skrzydla, 'k_side': 'bottom', 'apts': []},
+                        {'id': 'BL', 'x': szer_skrajna, 'y': 0, 'w': dlugosc_budynku/2 - rdzen_w/2 - szer_skrajna, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []},
+                        {'id': 'BR', 'x': dlugosc_budynku/2 + rdzen_w/2, 'y': 0, 'w': dlugosc_budynku/2 - rdzen_w/2 - szer_skrajna, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []}
+                    ]
+
+                    if len(mieszkania_pietra) >= 2:
+                        tracts[0]['apts'].append(mieszkania_pietra[0])
+                        tracts[1]['apts'].append(mieszkania_pietra[1])
+                        for apt in mieszkania_pietra[2:]:
+                            sub = tracts[2:]
+                            sub.sort(key=lambda t: sum([a['pow'] for a in t['apts']]) / max(1, t['w'] * t['d']))
+                            sub[0]['apts'].append(apt)
 
                     for t in tracts:
                         if not t['apts']: continue
-                        if t['id'] in ['TL', 'BL']: t['apts'].sort(key=lambda x: x['pow'], reverse=True)
-                        elif t['id'] in ['TR', 'BR']: t['apts'].sort(key=lambda x: x['pow'], reverse=False)
-                        elif t['id'] == 'B':
-                            t['apts'].sort(key=lambda x: x['pow'], reverse=True)
-                            t['apts'] = t['apts'][0::2] + list(reversed(t['apts'][1::2]))
-
-                        total_area = sum([a['pow'] for a in t['apts']])
-                        curr_x = t['x']
-                        for a in t['apts']:
-                            a_w = t['w'] * (a['pow'] / total_area)
-                            actual_pow = a_w * t['d']
-                            rysuj_mieszkanie(ax, curr_x, t['y'], a_w, t['d'], a['typ'], actual_pow, t['k_side'])
-                            curr_x += a_w
+                        if t['id'] in ['L_END', 'R_END']:
+                            a = t['apts'][0]
+                            rysuj_mieszkanie(ax, t['x'], t['y'], t['w'], t['d'], a['typ'], a['pow'], t['k_side'])
+                        else:
+                            total_area = sum([a['pow'] for a in t['apts']])
+                            curr_x = t['x']
+                            for a in t['apts']:
+                                a_w = t['w'] * (a['pow'] / total_area)
+                                rysuj_mieszkanie(ax, curr_x, t['y'], a_w, t['d'], a['typ'], a['pow'] * (t['w']/total_area if total_area > 0 else 1), t['k_side'])
+                                curr_x += a_w
 
                     ax.set_xlim(-1, dlugosc_budynku + 1)
                     ax.set_ylim(-2, szerokosc_traktu + 1)
                     ax.set_aspect('equal')
                     ax.axis('off')
-                    ax.set_title(f"Plan Aranżacji Wnętrz (Space Plan) - Piętro {pietro_nr}", fontsize=12, weight='bold')
+                    ax.set_title(f"Plan Aranżacji Wnętrz (Space Plan WT) - Piętro {pietro_nr}", fontsize=12, weight='bold')
                     st.pyplot(fig)
 
         with t2:
             st.write(f"**Wymagane PBC całkowite:** {round(wymagane_pbc, 1)} m2")
             st.write(f" - NA GRUNCIE RODZIMYM ({int(wskaznik_pbc_rodzime_w_pbc*100)}%): {round(wymagane_pbc_rodzime, 1)} m2")
             st.write(f" - DO ZBILANSOWANIA NA STROPIE: {round(wymagane_pbc - wymagane_pbc_rodzime, 1)} m2")
-            st.success("Bilans biologiczny zweryfikowany pomyślnie. Garaż bezpiecznie omija grunt rodzimy.")
 
         with t3:
             c1, c2, c3 = st.columns(3)
-            c1.metric("Miejsca bazowe mieszkań", f"{baza_miejsc} szt.")
-            c2.metric("Goście + Niepełnospr. (2%)", f"{miejsca_goscie + miejsca_niepelnosprawni} szt.")
+            c1.metric("Miejsca bazowe", f"{baza_miejsc} szt.")
+            c2.metric("Goście + Niepełnospr.", f"{miejsca_goscie + miejsca_niepelnosprawni} szt.")
             c3.metric("Kondygnacje podziemne", f"{liczba_poziomow_garazu}")
-            
-            st.metric("ŁĄCZNIE WYMAGANE MIEJSCA PARKINGOWE", f"{wymagane_miejsca} szt.")
-            
-            st.markdown(f"**Zbilansowanie hali i obrys garażu w działce:**")
-            st.write(f"• Powierzchnia poziomu **-1**: **{pow_garazu_poziom_1} m2** (Limit pod zieleń rodzimą: {round(max_garaz_poziom, 1)} m2)")
-            st.write(f"• Powierzchnia poziomu **-2**: **{pow_garazu_poziom_2} m2**")
+            st.metric("ŁĄCZNIE MIEJSCA PARKINGOWE", f"{wymagane_miejsca} szt.")
 
         with t4:
             przychody_pum = calkowity_pum * cena_pum
@@ -481,9 +451,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             
             pc_nadziemna = pow_zabudowy * liczba_kond
             pc_podziemna = pow_garazu_poziom_1 + pow_garazu_poziom_2
-            koszt_budowy_nad = pc_nadziemna * koszt_pc_nadziemna
-            koszt_budowy_pod = pc_podziemna * koszt_pc_podziemna
-            koszty_total = koszt_budowy_nad + koszt_budowy_pod + koszt_dzialki
+            koszty_total = (pc_nadziemna * koszt_pc_nadziemna) + (pc_podziemna * koszt_pc_podziemna) + koszt_dzialki
             
             zysk_brutto = przychody_total - koszty_total
             marza = (zysk_brutto / przychody_total) * 100 if przychody_total > 0 else 0
@@ -493,6 +461,4 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c1.metric("Przychody (GDV)", f"{przychody_total:,.0f} PLN".replace(',', ' '))
             c2.metric("Koszty Inwestycji (TDC)", f"{koszty_total:,.0f} PLN".replace(',', ' '))
             c3.metric("Zysk Brutto", f"{zysk_brutto:,.0f} PLN".replace(',', ' '))
-            
-            st.write(f"• Szacowana marża na projekcie: **{round(marza, 1)}%**")
-            st.write(f"• Wskaźnik ROI (Zwrot z kosztów): **{round(roi, 1)}%**")
+            st.write(f"• Marża deweloperska: **{round(marza, 1)}%** | Wskaźnik ROI: **{round(roi, 1)}%**")
