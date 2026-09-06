@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V34", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V35", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Generatywny Space Plan")
-st.markdown("Prawdziwy układ WT: osobne WC, wymiarowanie każdego pokoju, brak strat korytarza, kawalerki open-space.")
+st.title("🏗️ PRO-DEVELOPER AI: Zaawansowany Space Plan")
+st.markdown("Generatywny rzut WT: osobne WC, wymiarowanie każdego pokoju, brak strat korytarza, kawalerki open-space i ergonomia mebli.")
 st.divider()
 
 # ==========================================================
@@ -246,7 +246,7 @@ if st.button("🚀 Pobierz Działki i Generuj Rzuty", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3_col.metric("Kondygnacje", f"{liczba_kond} kond.")
             
-            st.info("💡 **Legenda Architektoniczna:** Korytarz nie dotyka elewacji (0 strat!). Łazienki 2x2m zgrupowane przy korytarzu. Od 3-pok wzwyż automatyczne Extra WC. Kawalerki nie mają ścian działowych. Wszystkie pokoje dokładnie zwymiarowane.")
+            st.info("💡 **Legenda Architektoniczna:** Wejście na dole, klatka na górze. Korytarz nie dotyka elewacji (0 strat!). Łazienki 2x2m zgrupowane przy korytarzu. Od 3-pok wzwyż automatyczne Extra WC. Kawalerki nie mają ścian działowych. Wszystkie pokoje dokładnie zwymiarowane.")
 
             def rysuj_mieszkanie(ax, x_base, y_base, w, d, typ, pow_m, korytarz_side):
                 c_laz = '#e1f5fe'
@@ -255,103 +255,121 @@ if st.button("🚀 Pobierz Działki i Generuj Rzuty", type="primary"):
                 c_drzwi_we = '#8d6e63'
                 c_drzwi_wew = '#9e9e9e'
 
-                # Uniwersalny układ lokalny. v=0 to ściana z oknami, v=V_max to ściana korytarza.
+                # Uniwersalny układ lokalny U/V by zapobiegać błędom rotacji. 
+                # V=0 to okna, V=V_max to korytarz osiowy.
                 if korytarz_side in ['left', 'right']: U_max, V_max = d, w
                 else: U_max, V_max = w, d
 
                 def add_rect(u, v, du, dv, color, ec='black', hatch=None, text="", fontsize=4.5, text_rot=0):
-                    if korytarz_side == 'top': rx, ry, rw, rd = x_base + u, y_base + v, du, dv
-                    elif korytarz_side == 'bottom': rx, ry, rw, rd = x_base + u, y_base + V_max - v - dv, du, dv
+                    # Zmiana układu na globalny X/Y plottera
+                    if korytarz_side == 'top': 
+                        rx, ry, rw, rd = x_base + u, y_base + v, du, dv
+                        final_rot = text_rot
+                    elif korytarz_side == 'bottom': 
+                        rx, ry, rw, rd = x_base + u, y_base + V_max - v - dv, du, dv
+                        final_rot = text_rot
                     elif korytarz_side == 'left': 
                         rx, ry, rw, rd = x_base + V_max - v - dv, y_base + u, dv, du
-                        text_rot += 90
+                        final_rot = text_rot + 90
                     elif korytarz_side == 'right': 
                         rx, ry, rw, rd = x_base + v, y_base + u, dv, du
-                        text_rot -= 90
+                        final_rot = text_rot - 90
                     
                     ax.add_patch(patches.Rectangle((rx, ry), rw, rd, facecolor=color, edgecolor=ec, hatch=hatch, lw=0.8, zorder=2))
-                    if text: ax.text(rx + rw/2, ry + rd/2, text, fontsize=fontsize, ha='center', va='center', rotation=text_rot, zorder=3)
+                    if text: ax.text(rx + rw/2, ry + rd/2, text, fontsize=fontsize, ha='center', va='center', rotation=final_rot, zorder=3)
 
                 num_beds = int(typ[0]) - 1
+                add_rect(0, 0, U_max, V_max, c_salon) # Podkład salonu
                 
-                # 1. Tło mieszkania
-                add_rect(0, 0, U_max, V_max, c_salon) 
-                
-                # 2. Główna Łazienka (Zawsze 2.0 x 2.0m -> 4.0m2)
+                # --- ŁAZIENKA GŁÓWNA (Gwarantowane 2.0x2.0m) ---
                 laz_u, laz_v = 2.0, 2.0
                 add_rect(0, V_max - laz_v, laz_u, laz_v, c_laz)
                 # Wyposażenie łazienki
-                add_rect(0.1, V_max - laz_v + 0.1, 0.7, 1.5, 'white', hatch='xx', text="WANNA/PRYSZ\n150x70", fontsize=3)
-                add_rect(1.4, V_max - laz_v + 1.4, 0.4, 0.5, 'white', text="WC", fontsize=3)
-                add_rect(1.4, V_max - laz_v + 0.2, 0.5, 0.4, 'white', text="ZLEW", fontsize=3)
-                add_rect(0.9, V_max - laz_v + 1.3, 0.6, 0.6, '#eeeeee', text="PRALKA", fontsize=3)
-                add_rect(laz_u/2 - 0.4, V_max - laz_v - 0.05, 0.8, 0.05, c_drzwi_wew) # Drzwi łazienkowe 80cm
+                add_rect(0.1, V_max - 1.0, 0.9, 0.9, 'white', hatch='xx', text="WANNA\n170x70", fontsize=3)
+                add_rect(1.5, V_max - 0.6, 0.4, 0.5, 'white', text="WC", fontsize=3)
+                add_rect(1.4, V_max - 1.9, 0.5, 0.4, 'white', text="ZLEW", fontsize=3)
+                add_rect(0.1, V_max - 1.9, 0.6, 0.6, '#eeeeee', text="PRALKA", fontsize=3)
+                # Drzwi do łazienki 80cm
+                add_rect(laz_u - 0.05, V_max - 0.9, 0.05, 0.8, c_drzwi_wew) 
                 add_rect(laz_u/2 - 0.5, V_max - laz_v/2 - 0.2, 1.0, 0.4, 'white', text=f"ŁAZ\n{round(laz_u*laz_v, 1)} m²", fontsize=4)
 
-                # 3. Extra WC (dla 3-pok i 4-pok)
-                if num_beds >= 2 and U_max > laz_u + 1.5:
-                    wc_u, wc_v = 1.5, 1.2
+                # --- EXTRA WC (dla 3-pok i 4-pok) ---
+                wc_u, wc_v = 0, 0
+                if num_beds >= 2 and U_max > 4.5:
+                    wc_u, wc_v = 1.4, 1.2
                     add_rect(laz_u, V_max - wc_v, wc_u, wc_v, c_laz)
-                    add_rect(laz_u + 0.1, V_max - wc_v + 0.1, 0.4, 0.5, 'white', text="WC", fontsize=3)
-                    add_rect(laz_u + 0.9, V_max - wc_v + 0.1, 0.5, 0.4, 'white', text="ZLEW", fontsize=3)
-                    add_rect(laz_u + wc_u/2 - 0.4, V_max - wc_v - 0.05, 0.8, 0.05, c_drzwi_wew) # Drzwi WC
+                    add_rect(laz_u + wc_u - 0.05, V_max - 0.9, 0.05, 0.8, c_drzwi_wew) # Drzwi WC
+                    add_rect(laz_u + 0.1, V_max - 0.6, 0.4, 0.5, 'white', text="WC", fontsize=3)
+                    add_rect(laz_u + 0.1, V_max - 1.1, 0.4, 0.4, 'white', text="ZLEW", fontsize=3)
                     add_rect(laz_u + wc_u/2 - 0.4, V_max - wc_v/2 - 0.15, 0.8, 0.3, 'white', text=f"WC\n{round(wc_u*wc_v, 1)} m²", fontsize=3)
-                    kuch_start_u = laz_u + wc_u
-                else:
-                    kuch_start_u = laz_u
 
-                # 4. Drzwi Wejściowe do Mieszkania (90cm)
-                add_rect(kuch_start_u + 0.2, V_max - 0.15, 0.9, 0.15, c_drzwi_we)
+                # --- DRZWI WEJŚCIOWE DO MIESZKANIA (90cm) ---
+                entry_u = laz_u + wc_u + 0.1
+                add_rect(entry_u, V_max - 0.15, 0.9, 0.15, c_drzwi_we)
                 
-                # 5. Aneks Kuchenny (Ciąg technologiczny)
-                kuch_len = min(2.4, U_max - kuch_start_u - 0.2)
-                add_rect(kuch_start_u + 0.1, V_max - laz_v, kuch_len, 0.6, '#eeeeee', text="LODÓWKA | ZLEW | PŁYTA | BLAT", fontsize=3)
+                # --- KUCHNIA I SZAFA W KORYTARZU ---
+                szafa_u = entry_u + 1.0
+                kuch_start_u = szafa_u + 1.1
+                
+                if kuch_start_u + 1.8 <= U_max:
+                    # Długa ściana - mieści się Szafa + Kuchnia
+                    add_rect(szafa_u, V_max - 0.6, 1.0, 0.6, '#d7ccc8', text="SZAFA 100x60", fontsize=3)
+                    kuch_w = min(2.4, U_max - kuch_start_u)
+                    add_rect(kuch_start_u, V_max - 0.6, kuch_w, 0.6, '#eeeeee', text="LODÓWKA | ZLEW | PŁYTA | BLAT", fontsize=3)
+                    add_rect(kuch_start_u, V_max - 1.6, 1.2, 0.8, '#ffe082', text="STÓŁ JADALNIANY", fontsize=3)
+                else:
+                    # Wąskie mieszkanie (np. kawalerka) - Szafa bokiem, Kuchnia obrócona
+                    add_rect(U_max - 0.6, V_max - 1.0, 0.6, 1.0, '#d7ccc8', text="SZAFA", text_rot=90, fontsize=3)
+                    add_rect(U_max - 0.6, V_max - 3.0, 0.6, 1.8, '#eeeeee', text="KUCHNIA", text_rot=90, fontsize=3)
+                    add_rect(U_max - 1.6, V_max - 2.0, 0.8, 0.8, '#ffe082', text="STÓŁ", fontsize=3)
 
-                # 6. Sypialnie (Brak w 1-pokojowych)
-                syp_d = min(3.5, V_max * 0.55)
+                # --- SYPIALNIE ---
+                syp_v = min(3.5, V_max * 0.55)
                 if num_beds > 0:
-                    syp_w = (U_max - 3.0) / num_beds 
+                    # Zostawiamy min 3.2m na salon od strony okien
+                    syp_u = max(2.2, min(3.5, (U_max - 3.2) / num_beds)) if U_max > 3.2 else U_max / (num_beds + 1)
+                    
                     for i in range(num_beds):
-                        su = U_max - (i+1)*syp_w
-                        add_rect(su, 0, syp_w, syp_d, c_syp)
+                        bu = i * syp_u
+                        add_rect(bu, 0, syp_u, syp_v, c_syp)
+                        # Drzwi do sypialni (80cm)
+                        add_rect(bu + syp_u - 0.9, syp_v - 0.05, 0.8, 0.05, c_drzwi_wew)
                         
-                        # Drzwi wewnętrzne do sypialni 80cm
-                        add_rect(su + 0.2, syp_d - 0.05, 0.8, 0.05, c_drzwi_wew)
-                        
-                        # Szafa Sypialniana 100x60
-                        add_rect(su + 0.1, syp_d - 0.7, 1.0, 0.6, '#d7ccc8', text="SZAFA", fontsize=3)
-                        
-                        # Łóżko i poduszki (Master 160x200, reszta 90x200)
+                        # Łóżko i Szafa 60x100
                         bed_w = 1.6 if i == 0 else 0.9
-                        add_rect(su + syp_w - bed_w - 0.1, 0.1, bed_w, 2.0, 'white', text="ŁÓŻKO", fontsize=3)
-                        add_rect(su + syp_w - bed_w, 0.2, 0.6, 0.3, '#f0f0f0') 
-                        if i == 0: add_rect(su + syp_w - bed_w + 0.8, 0.2, 0.6, 0.3, '#f0f0f0')
+                        add_rect(bu + 0.1, 0.1, bed_w, 2.0, 'white', text=f"ŁÓŻKO\n{int(bed_w*100)}x200", fontsize=3)
+                        add_rect(bu + 0.2, 0.2, 0.6, 0.3, '#f0f0f0') # Poduszka
+                        if i == 0: add_rect(bu + 0.9, 0.2, 0.6, 0.3, '#f0f0f0')
+                        
+                        add_rect(bu + syp_u - 0.7, 0.1, 0.6, 1.0, '#d7ccc8', text="SZAFA\n60x100", text_rot=90, fontsize=3)
+                        add_rect(bu + syp_u/2 - 0.6, syp_v/2 - 0.2, 1.2, 0.4, 'white', text=f"SYPIALNIA\n{round(syp_u*syp_v, 1)} m²", fontsize=4, ec='none')
 
-                        add_rect(su + syp_w/2 - 0.6, syp_d/2 - 0.2, 1.2, 0.4, 'white', text=f"SYPIALNIA\n{round(syp_w*syp_d, 1)} m²", fontsize=4)
-                
-                # 7. Wyposażenie Salonu (Zależne od tego czy to kawalerka)
-                if num_beds == 0:
-                    # KAWALERKA: Łóżko w salonie i szafa w przedpokoju
-                    add_rect(kuch_start_u + 1.2, V_max - 0.6, 1.0, 0.6, '#d7ccc8', text="SZAFA", fontsize=3)
-                    add_rect(U_max - 1.8, 0.1, 1.6, 2.0, 'white', text="ŁÓŻKO 160", fontsize=3)
-                    add_rect(0.2, 0.2, 2.0, 0.9, '#eceff1', text="SOFA", fontsize=4)
-                    add_rect(2.8, 0.2, 0.3, 1.2, '#cfd8dc', text="RTV+TV", text_rot=90, fontsize=3)
-                    add_rect(1.2, 1.5, 0.8, 0.8, '#ffe082', text="STÓŁ", fontsize=3)
-                    salon_area = pow_m - (laz_u*laz_v)
+                    # --- SALON (Wielopokojowe) ---
+                    lr_u_start = num_beds * syp_u
+                    lr_w = U_max - lr_u_start
+                    
+                    # TV i Sofa z dystansem 2m
+                    add_rect(lr_u_start + 0.1, 0.5, 0.3, 1.2, '#cfd8dc', text="TV", text_rot=90, fontsize=3)
+                    sofa_u = min(lr_u_start + 2.5, U_max - 1.0)
+                    add_rect(sofa_u, 0.5, 0.9, 2.0, '#eceff1', text="SOFA", text_rot=90, fontsize=4)
+                    
+                    salon_area = pow_m - (laz_u*laz_v) - (wc_u*wc_v) - (num_beds * syp_u * syp_v)
+                    add_rect(lr_u_start + lr_w/2 - 0.9, V_max - laz_v - 0.5, 1.8, 0.4, 'white', text=f"SALON + HOL\n{round(salon_area, 1)} m²", fontsize=4.5)
+                    
                 else:
-                    # STANDARDOWY SALON
-                    add_rect(0.2, 0.2, 2.0, 0.9, '#eceff1', text="SOFA", fontsize=4)
-                    add_rect(2.8, 0.2, 0.3, 1.2, '#cfd8dc', text="RTV+TV", text_rot=90, fontsize=3)
-                    add_rect(0.2, 1.5, 1.2, 0.8, '#ffe082', text="STÓŁ JADALNIANY", fontsize=3)
-                    salon_area = pow_m - (laz_u*laz_v) - (num_beds * syp_w * syp_d)
-                    if num_beds >= 2 and U_max > laz_u + 1.5: salon_area -= (wc_u*wc_v)
+                    # --- KAWALERKA OPEN SPACE ---
+                    add_rect(0.1, 0.1, 1.6, 2.0, 'white', text="ŁÓŻKO 160x200", fontsize=3)
+                    add_rect(0.2, 0.2, 0.6, 0.3, '#f0f0f0') 
+                    add_rect(0.9, 0.2, 0.6, 0.3, '#f0f0f0') 
+                    
+                    add_rect(U_max - 1.0, 0.5, 0.9, 2.0, '#eceff1', text="SOFA", text_rot=90, fontsize=4)
+                    add_rect(U_max - 3.2, 0.5, 0.3, 1.2, '#cfd8dc', text="TV", text_rot=90, fontsize=3)
+                    
+                    salon_area = pow_m - (laz_u*laz_v)
+                    add_rect(U_max/2 - 0.9, V_max/2 - 0.2, 1.8, 0.4, 'white', text=f"SALON + KUCH\n{round(salon_area, 1)} m²", fontsize=4.5)
 
-                # Label Salonu
-                add_rect(1.5, V_max - laz_v - 0.5, 1.8, 0.4, 'white', text=f"SALON + KUCH\n{round(salon_area, 1)} m²", fontsize=4.5)
-
-                # Główny Label Mieszkania (ID)
                 rot = 90 if korytarz_side in ['left', 'right'] else 0
-                ax.text(x_base + w/2, y_base + d/2, f"M: {typ}\n{round(pow_m, 1)} m²", fontsize=7, ha='center', va='center', weight='bold', rotation=rot, bbox=dict(facecolor='white', alpha=0.9, edgecolor='black', pad=1), zorder=10)
+                ax.text(x_base + w/2, y_base + d/2, f"M: {typ}\n{round(pow_m, 1)} m²", fontsize=8, ha='center', va='center', weight='bold', rotation=rot, bbox=dict(facecolor='white', alpha=0.9, edgecolor='black', pad=1), zorder=10)
 
             zakladki_pieter = st.tabs([f"Piętro {p}" for p in range(1, liczba_kond + 1)])
 
@@ -364,27 +382,26 @@ if st.button("🚀 Pobierz Działki i Generuj Rzuty", type="primary"):
                     # Obrys budynku
                     ax.add_patch(patches.Rectangle((0, 0), dlugosc_budynku, szerokosc_traktu, linewidth=2, edgecolor='black', facecolor='#f8f9fa'))
                     
-                    # Rdzeń (na górze)
+                    # Rdzeń Klatka (na górnej ścianie)
                     rdzen = patches.Rectangle((dlugosc_budynku/2 - rdzen_w/2, glebokosc_skrzydla + 1.5), rdzen_w, glebokosc_skrzydla, linewidth=1.5, edgecolor='#495057', facecolor='#cfd8dc', hatch='\\')
                     ax.add_patch(rdzen)
                     ax.text(dlugosc_budynku/2, glebokosc_skrzydla + 1.5 + glebokosc_skrzydla/2, "RDZEŃ\n(KLATKA+WINDA)", fontsize=7, ha='center', va='center', weight='bold')
 
-                    # Korytarz zamknięty
+                    # Korytarz (Centralny)
                     korytarz = patches.Rectangle((szer_skrajna, glebokosc_skrzydla), dlugosc_budynku - 2*szer_skrajna, 1.5, facecolor='#e0e0e0')
                     ax.add_patch(korytarz)
 
-                    # Lobby wejściowe (na dole, przeciwlegle do rdzenia)
+                    # Lobby wejściowe (na dole)
                     if pietro_nr == 1:
                         lobby = patches.Rectangle((dlugosc_budynku/2 - 2.0, 0), 4.0, glebokosc_skrzydla, facecolor='#e0e0e0', edgecolor='gray')
                         ax.add_patch(lobby)
                         wejscie = patches.Rectangle((dlugosc_budynku/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffb300', edgecolor='black', linewidth=1.5)
                         ax.add_patch(wejscie)
-                        ax.text(dlugosc_budynku/2, -1.0, "WEJŚCIE DO BUDYNKU", color='black', fontsize=7, ha='center', weight='bold')
+                        ax.text(dlugosc_budynku/2, -1.0, "WEJŚCIE DO BUDYNKU (LOBBY)", color='black', fontsize=7, ha='center', weight='bold')
 
                     mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
                     mieszkania_pietra.sort(key=lambda x: x["pow"], reverse=True)
 
-                    # Obliczanie precyzyjnych szerokości skrajnych (Zero Waste)
                     if len(mieszkania_pietra) >= 2:
                         w_skr_L = max(4.0, min(10.0, mieszkania_pietra[0]['pow'] / szerokosc_traktu))
                         w_skr_R = max(4.0, min(10.0, mieszkania_pietra[1]['pow'] / szerokosc_traktu))
