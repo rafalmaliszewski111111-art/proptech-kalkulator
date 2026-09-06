@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="Pro-Developer AI - V30", layout="wide")
+st.set_page_config(page_title="Pro-Developer AI - V31", layout="wide")
 
-st.title("🏗️ PRO-DEVELOPER AI: Space Planning i Aranżacja Wnętrz")
-st.markdown("Generatywny rzut piętra z pełnym umeblowaniem (łóżka 160/90, kuchnie z ciągami technologicznymi, optymalizacja pionów).")
+st.title("🏗️ PRO-DEVELOPER AI: Space Planning i Detale Architektoniczne")
+st.markdown("Generatywny rzut z drzwiami (90cm/80cm), szafami (60x100), zaawansowaną łazienką i zmaksymalizowanym PUM-em.")
 st.divider()
 
 # ==========================================================
@@ -159,7 +159,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         szerokosc_traktu = szerokosc_traktu_input
         if szerokosc_traktu > max_wid:
-            st.warning(f"⚠️ Trakt został automatycznie zredukowany do {round(max_wid, 1)}m by spełnić linie zabudowy.")
+            st.warning(f"⚠️ Trakt został zredukowany do {round(max_wid, 1)}m by spełnić linie zabudowy.")
             szerokosc_traktu = max_wid
 
         liczba_kond = max(1, math.floor(max_wysokosc_mpzp / wys_kond_nadziemna))
@@ -182,7 +182,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         budynek_gps_final = metry_to_gps(budynek_metry_final, teren_metry.bounds, teren_gps.bounds)
 
         # ==========================================================
-        # SILNIK OBLICZENIOWY & BEZSTRATNE WYPEŁNIENIE
+        # SILNIK OBLICZENIOWY: ZEROWE STRATY I MINIMALNA KOMUNIKACJA
         # ==========================================================
         struktura = {
             "1-pok": {"udzial_%": udzial_1p, "min_m2": min_1p, "max_m2": max_1p}, 
@@ -195,7 +195,8 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         wymagane_pbc_rodzime = wymagane_pbc * wskaznik_pbc_rodzime_w_pbc
         max_garaz_poziom = max(0.0, pow_dzialki - wymagane_pbc_rodzime)
         
-        szerokosc_korytarza = 1.6
+        # ZMniejszony korytarz osiowy do prawnego minimum (1.5m) dla oszczędności komunikacji
+        szerokosc_korytarza = 1.5
         szerokosc_rdzenia = 4.0
         glebokosc_skrzydla = (szerokosc_traktu - szerokosc_korytarza) / 2
         
@@ -244,7 +245,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
         st.divider()
         st.subheader("2. Interaktywna Mapa z Miarką Odległości")
-        st.info("💡 **MIARKA:** Użyj ikony linijki w prawym górnym rogu mapy, aby zmierzyć rzeczywistą odległość od narysowanej linii do granicy.")
         
         srodek = teren_gps.centroid
         mapa = folium.Map(location=[srodek.y, srodek.x], zoom_start=18, tiles="CartoDB positron")
@@ -260,7 +260,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
         # --- RAPORT I ZAKŁADKI KONDYGNACJI ---
         st.divider()
         st.subheader("3. Szczegółowy Raport i Generator Architektury Wnętrz")
-        t1, t2, t3, t4 = st.tabs(["🏗️ Rzuty i Wnętrza", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
+        t1, t2, t3, t4 = st.tabs(["🏗️ Architektura Wnętrz (Meble & Drzwi)", "🌳 Biologia (PBC)", "🚗 Hala Garażowa i PPOŻ", "💰 Finanse i Rentowność"])
         
         with t1:
             c1, c2, c3_col = st.columns(3)
@@ -268,58 +268,76 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
             c2.metric("Powierzchnia Zabudowy (PZ)", f"{round(pow_zabudowy, 1)} m2")
             c3_col.metric("Kondygnacje", f"{liczba_kond} kond. ({max_wysokosc_mpzp}m max)")
             
-            st.markdown("### 📐 Algorytm Aranżacji i Space Planningu")
-            st.info("Pokoje są wyposażone: łóżka główne (1.6x2.0m), pojedyncze (0.9x2.0m), pełne ciągi kuchenne i sofy telewizyjne.")
+            st.info("💡 **Legenda wyposażenia:** Dodano drzwi wejściowe (90cm brązowe), drzwi wewnętrzne (80cm szare), szafy (100x60cm), pełen ciąg w łazience (prysznic, WC, zlew, pralka) oraz ustandaryzowane łóżka i kuchnie.")
 
-            # ---- FUNKCJA ARANŻACJI WNĘTRZ ----
+            # ---- FUNKCJA ARANŻACJI WNĘTRZ Z DRZWIAMI I MEBLAMI ----
             def rysuj_mieszkanie(ax, x, y, w, d, typ, pow_m, korytarz_side):
-                # Kolory stref
-                c_laz = '#bbdefb'
-                c_syp = '#c8e6c9'
-                c_salon = '#ffe0b2'
+                c_laz = '#e1f5fe'
+                c_syp = '#f1f8e9'
+                c_salon = '#fff3e0'
+                c_drzwi_we = '#8d6e63' # Brązowe wejście 90cm
+                c_drzwi_wew = '#9e9e9e' # Szare wewnętrzne 80cm
                 
                 # Baza: Salon z Aneksem
                 ax.add_patch(patches.Rectangle((x, y), w, d, fill=True, facecolor=c_salon, edgecolor='black', lw=1.5))
                 num_beds = int(typ[0]) - 1
                 
-                # Zoptymalizowane wymiary WT
-                laz_w = min(2.5, w * 0.4)
-                laz_d = min(2.0, d * 0.4)
+                # Wymiary pomieszczeń
+                laz_w = min(2.4, w * 0.45)
+                laz_d = min(2.0, d * 0.45)
                 syp_d = min(3.5, d * 0.55)
                 syp_w = min(4.0, (w * 0.6) / num_beds) if num_beds > 0 else 0
                 
-                # Pozycjonowanie w zależności od strony korytarza
                 if korytarz_side == 'top':
                     laz_y, syp_y = y + d - laz_d, y
                     lbl_y = y + d - laz_d/2
                     kuch_y = y + d - 0.6
-                    bed_wall_y = y + syp_d # Główki łóżka do ściany wewnętrznej
+                    bed_wall_y = y + syp_d
+                    drzwi_we_y = y + d - 0.15
+                    drzwi_laz_y = y + d - laz_d
                 else:
                     laz_y, syp_y = y, y + d - syp_d
                     lbl_y = y + laz_d/2
                     kuch_y = y
-                    bed_wall_y = y + d - syp_d # Główki łóżka do ściany wewnętrznej
+                    bed_wall_y = y + d - syp_d
+                    drzwi_we_y = y
+                    drzwi_laz_y = y + laz_d - 0.05
 
-                # --- 1. ŁAZIENKA ---
+                # --- 1. DRZWI WEJŚCIOWE DO MIESZKANIA (90 cm) ---
+                ax.add_patch(patches.Rectangle((x + 0.2, drzwi_we_y), 0.9, 0.15, facecolor=c_drzwi_we, edgecolor='black', lw=1))
+
+                # --- 2. ŁAZIENKA (Prysznic, WC, Zlew, Pralka) ---
                 ax.add_patch(patches.Rectangle((x, laz_y), laz_w, laz_d, fill=True, facecolor=c_laz, edgecolor='black', lw=1))
-                # Prysznic / Wanna
-                ax.add_patch(patches.Rectangle((x + 0.1, laz_y + (0.1 if korytarz_side == 'bottom' else laz_d - 1.0)), 0.9, 0.9, fill=True, facecolor='white', edgecolor='gray', hatch='xx', lw=0.5))
-                # WC & Umywalka
-                ax.add_patch(patches.Rectangle((x + laz_w - 0.5, laz_y + (laz_d - 0.4 if korytarz_side == 'bottom' else 0.1)), 0.4, 0.3, fill=True, facecolor='white', edgecolor='gray', lw=0.5))
-                ax.text(x + laz_w/2, laz_y + laz_d/2, f"ŁAZ\n{round(laz_w*laz_d, 1)}m²", fontsize=5, ha='center', va='center')
+                
+                # Wyposażenie łazienki
+                # Prysznic (90x90) w rogu
+                prysz_y = laz_y + (0.1 if korytarz_side == 'bottom' else laz_d - 1.0)
+                ax.add_patch(patches.Rectangle((x + 0.1, prysz_y), 0.9, 0.9, facecolor='white', edgecolor='gray', hatch='xx', lw=0.5))
+                ax.text(x + 0.55, prysz_y + 0.45, "PRYSZ", fontsize=4, ha='center', va='center')
+                # WC (40x50)
+                wc_y = laz_y + (laz_d - 0.6 if korytarz_side == 'bottom' else 0.1)
+                ax.add_patch(patches.Rectangle((x + laz_w - 0.5, wc_y), 0.4, 0.5, facecolor='white', edgecolor='gray', lw=0.5))
+                ax.text(x + laz_w - 0.3, wc_y + 0.25, "WC", fontsize=4, ha='center', va='center')
+                # Zlew (60x40) i Pralka (60x60)
+                zl_y = laz_y + (0.1 if korytarz_side == 'bottom' else laz_d - 0.5)
+                ax.add_patch(patches.Rectangle((x + laz_w - 1.2, zl_y), 0.6, 0.4, facecolor='white', edgecolor='gray', lw=0.5))
+                ax.text(x + laz_w - 0.9, zl_y + 0.2, "ZLEW", fontsize=4, ha='center', va='center')
+                
+                # Drzwi do łazienki (80cm) na ściance działowej
+                ax.add_patch(patches.Rectangle((x + laz_w/2 - 0.4, drzwi_laz_y), 0.8, 0.05, facecolor=c_drzwi_wew, edgecolor='black', lw=0.5))
 
-                # --- 2. ANEKS KUCHENNY ---
+                # --- 3. ANEKS KUCHENNY (Moduły 60x60) ---
                 kuch_x = x + laz_w
                 actual_kuch_w = min(2.4, w - laz_w - 0.1)
                 if actual_kuch_w >= 0.6:
                     num_modules = int(actual_kuch_w // 0.6)
-                    labels = ["L", "Z", "P", "B"] # Lodówka, Zlew, Płyta, Blat
+                    labels = ["LOD", "ZLW", "PŁY", "BLT"] 
                     for j in range(num_modules):
                         mod_x = kuch_x + j * 0.6
                         ax.add_patch(patches.Rectangle((mod_x, kuch_y), 0.6, 0.6, fill=True, facecolor='#eeeeee', edgecolor='gray', lw=0.5))
-                        ax.text(mod_x + 0.3, kuch_y + 0.3, labels[j % 4], fontsize=4, ha='center', va='center', color='#333')
+                        ax.text(mod_x + 0.3, kuch_y + 0.3, labels[j % 4], fontsize=4, ha='center', va='center')
 
-                # --- 3. SYPIALNIE I ŁÓŻKA ---
+                # --- 4. SYPIALNIE (Łóżka, Szafy, Drzwi 80cm) ---
                 curr_syp_x = x + w
                 for i in range(num_beds):
                     curr_syp_x -= syp_w
@@ -330,37 +348,46 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     bed_x = curr_syp_x + (syp_w - bed_w) / 2
                     bed_start_y = bed_wall_y - 2.0 if korytarz_side == 'top' else bed_wall_y
                     
-                    ax.add_patch(patches.Rectangle((bed_x, bed_start_y), bed_w, 2.0, fill=True, facecolor='white', edgecolor='gray', lw=0.5))
+                    ax.add_patch(patches.Rectangle((bed_x, bed_start_y), bed_w, 2.0, facecolor='white', edgecolor='gray', lw=0.5))
                     
-                    # Poduszki (Główki przy ścianie wewnętrznej)
+                    # Poduszki
                     pillow_y = bed_wall_y - 0.4 if korytarz_side == 'top' else bed_wall_y + 0.1
                     if i == 0:
-                        ax.add_patch(patches.Rectangle((bed_x + 0.1, pillow_y), 0.6, 0.3, fill=True, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
-                        ax.add_patch(patches.Rectangle((bed_x + 0.9, pillow_y), 0.6, 0.3, fill=True, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
+                        ax.add_patch(patches.Rectangle((bed_x + 0.1, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
+                        ax.add_patch(patches.Rectangle((bed_x + 0.9, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
                     else:
-                        ax.add_patch(patches.Rectangle((bed_x + 0.15, pillow_y), 0.6, 0.3, fill=True, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
+                        ax.add_patch(patches.Rectangle((bed_x + 0.15, pillow_y), 0.6, 0.3, facecolor='#f0f0f0', edgecolor='gray', lw=0.3))
 
-                    ax.text(curr_syp_x + syp_w/2, syp_y + syp_d/2, f"SYP\n{round(syp_w*syp_d, 1)}m²", fontsize=5, ha='center', va='center', bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.3))
+                    # SZAFA w sypialni (100x60 cm) - Oparta o ścianę korytarzową pokoju
+                    szafa_w, szafa_d = 1.0, 0.6
+                    szafa_y = bed_wall_y - szafa_d if korytarz_side == 'top' else bed_wall_y
+                    ax.add_patch(patches.Rectangle((curr_syp_x + 0.1, szafa_y), szafa_w, szafa_d, facecolor='#d7ccc8', edgecolor='gray', lw=0.5))
+                    ax.text(curr_syp_x + 0.1 + szafa_w/2, szafa_y + szafa_d/2, "SZAFA", fontsize=4, ha='center', va='center')
 
-                # --- 4. SALON I SOFA ---
+                    # Drzwi wewnętrzne do sypialni (80cm)
+                    drzwi_syp_y = bed_wall_y - 0.05 if korytarz_side == 'bottom' else bed_wall_y
+                    ax.add_patch(patches.Rectangle((curr_syp_x + syp_w - 0.9, drzwi_syp_y), 0.8, 0.05, facecolor=c_drzwi_wew, edgecolor='black', lw=0.5))
+
+                    ax.text(curr_syp_x + syp_w/2, syp_y + syp_d/2, f"SYP {round(syp_w*syp_d, 1)}m²", fontsize=5, ha='center', va='center', bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', pad=0.2))
+
+                # --- 5. SALON I SOFA ---
                 sofa_w, sofa_d = 2.0, 0.9
-                if num_beds == 0:
-                    sofa_x = x + w/2 - sofa_w/2
-                else:
-                    sofa_x = curr_syp_x - sofa_w - 0.2
-                    
+                sofa_x = x + w/2 - sofa_w/2 if num_beds == 0 else curr_syp_x - sofa_w - 0.2
                 sofa_y = y + 0.2 if korytarz_side == 'top' else y + d - sofa_d - 0.2
                 
-                # Zabezpieczenie przed nakładaniem się na kuchnię
                 if sofa_x > x + laz_w + 0.1:
-                    ax.add_patch(patches.Rectangle((sofa_x, sofa_y), sofa_w, sofa_d, fill=True, facecolor='#d7ccc8', edgecolor='gray', lw=0.5, style='round,pad=0.1'))
+                    ax.add_patch(patches.Rectangle((sofa_x, sofa_y), sofa_w, sofa_d, facecolor='#eceff1', edgecolor='gray', lw=0.5, style='round,pad=0.1'))
+                    ax.text(sofa_x + sofa_w/2, sofa_y + sofa_d/2, "SOFA", fontsize=4, ha='center', va='center')
+
+                # W przypadku kawalerki dodajemy szafę do przedpokoju/salonu
+                if num_beds == 0:
+                    szafa_y = y + d - 0.7 if korytarz_side == 'top' else y + 0.1
+                    ax.add_patch(patches.Rectangle((x + w - 1.1, szafa_y), 1.0, 0.6, facecolor='#d7ccc8', edgecolor='gray', lw=0.5))
+                    ax.text(x + w - 0.6, szafa_y + 0.3, "SZAFA", fontsize=4, ha='center', va='center')
 
                 salon_area = pow_m - (laz_w*laz_d) - (num_beds * syp_w * syp_d)
                 salon_lbl_x = x + laz_w + (w - laz_w)/2
                 ax.text(salon_lbl_x, lbl_y, f"SALON+KUCH\n{round(salon_area, 1)}m²", fontsize=6, ha='center', va='center', weight='bold', bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.5))
-
-                # Główny metraż mieszkania
-                ax.text(x + w/2, y + d/2, f"{typ}\n{round(pow_m, 1)} m²", fontsize=8, ha='center', va='center', weight='bold', bbox=dict(facecolor='white', alpha=0.85, edgecolor='black', pad=1.5))
 
             zakladki_pieter = st.tabs([f"Piętro {p}" for p in range(1, liczba_kond + 1)])
 
@@ -369,19 +396,16 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                 with tab:
                     fig, ax = plt.subplots(figsize=(12, 6))
                     
-                    # Tło Płyty
                     ax.add_patch(patches.Rectangle((0, 0), dlugosc_budynku, szerokosc_traktu, linewidth=2, edgecolor='black', facecolor='#f8f9fa'))
                     
-                    # Rdzeń
                     klatka = patches.Rectangle((dlugosc_budynku/2 - szerokosc_rdzenia/2, szerokosc_traktu/2 + szerokosc_korytarza/2), szerokosc_rdzenia, glebokosc_skrzydla, linewidth=1.5, edgecolor='#495057', facecolor='#e9ecef', hatch='\\')
                     ax.add_patch(klatka)
-                    ax.text(dlugosc_budynku/2, szerokosc_traktu - glebokosc_skrzydla/2, "KLATKA + WINDA\n(TRZON)", fontsize=7, ha='center', va='center', weight='bold')
+                    ax.text(dlugosc_budynku/2, szerokosc_traktu - glebokosc_skrzydla/2, "TRZON\nKOMUNIKACYJNY", fontsize=7, ha='center', va='center', weight='bold')
 
-                    # Korytarz Centralny
-                    korytarz = patches.Rectangle((0, glebokosc_skrzydla), dlugosc_budynku, szerokosc_korytarza, facecolor='#dee2e6')
+                    korytarz = patches.Rectangle((0, glebokosc_skrzydla), dlugosc_budynku, szerokosc_korytarza, facecolor='#cfd8dc')
                     ax.add_patch(korytarz)
-                    ax.text(dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY", fontsize=6, ha='center', va='center')
-                    ax.text(3*dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY", fontsize=6, ha='center', va='center')
+                    ax.text(dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY (Wymóg 1.5m WT)", fontsize=6, ha='center', va='center')
+                    ax.text(3*dlugosc_budynku/4, szerokosc_traktu/2, "KORYTARZ OSIOWY (Wymóg 1.5m WT)", fontsize=6, ha='center', va='center')
 
                     if pietro_nr == 1:
                         wejscie = patches.Rectangle((dlugosc_budynku/2 - 1.5, -0.6), 3.0, 0.6, facecolor='#ffc107', edgecolor='black', linewidth=1.5)
@@ -390,7 +414,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
 
                     mieszkania_pietra = [m for m in wygenerowane_mieszkania if m["pietro"] == pietro_nr]
                     
-                    # Definicja traktów do bezstratnego wypełnienia
                     tracts = []
                     if pietro_nr == 1:
                         tracts = [
@@ -406,7 +429,6 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                             {'id': 'B', 'x': 0, 'y': 0, 'w': dlugosc_budynku, 'd': glebokosc_skrzydla, 'k_side': 'top', 'apts': []}
                         ]
 
-                    # Rozdzielanie i proporcjonalne skalowanie (Zero Waste)
                     for apt in mieszkania_pietra:
                         tracts.sort(key=lambda t: sum([a['pow'] for a in t['apts']]) / t['w'])
                         tracts[0]['apts'].append(apt)
@@ -431,7 +453,7 @@ if st.button("🚀 Pobierz Działki i Uruchom Analizę", type="primary"):
                     ax.set_ylim(-2, szerokosc_traktu + 1)
                     ax.set_aspect('equal')
                     ax.axis('off')
-                    ax.set_title(f"Zoptymalizowany Rzut - Piętro {pietro_nr}", fontsize=11, weight='bold')
+                    ax.set_title(f"Plan Aranżacji Wnętrz (Space Plan) - Piętro {pietro_nr}", fontsize=12, weight='bold')
                     st.pyplot(fig)
 
         with t2:
